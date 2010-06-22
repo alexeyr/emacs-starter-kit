@@ -403,6 +403,11 @@ You will also need to change the values for the location of bibtex
     (autopair-global-mode 1)
     (setq autopair-autowrap t)
 #+end_src
+*** Tabkey2 mode
+#+begin_src emacs-lisp
+  (require 'tabkey2)
+  ;; (tabkey2-mode t)
+#+end_src
 ** LaTeX Customizations and settings
 *** Use MikTeX
 #+srcname: miktex
