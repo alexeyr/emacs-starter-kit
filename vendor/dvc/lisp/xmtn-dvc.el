@@ -1,6 +1,6 @@
 ;;; xmtn-dvc.el --- DVC backend for monotone
 
-;; Copyright (C) 2008 Stephen Leake
+;; Copyright (C) 2008 - 2010 Stephen Leake
 ;; Copyright (C) 2006, 2007, 2008 Christian M. Ohler
 
 ;; Author: Christian M. Ohler
@@ -45,6 +45,7 @@
   (require 'xmtn-minimal)
   (require 'dvc-log)
   (require 'dvc-diff)
+  (require 'dvc-status)
   (require 'dvc-core)
   (require 'ewoc))
 
@@ -70,198 +71,33 @@
 (dvc-register-dvc 'xmtn "monotone")
 
 (defmacro* xmtn--with-automate-command-output-basic-io-parser
-    ((parser root-form command-form &key ((:may-kill-p may-kill-p-form)))
+    ((parser root-form command-form)
      &body body)
   (declare (indent 1) (debug (sexp body)))
-  (let ((parser-tmp (gensym))
-        (root (gensym))
+  (let ((root (gensym))
         (command (gensym))
-        (may-kill-p (gensym))
         (session (gensym))
         (handle (gensym)))
     `(let ((,root ,root-form)
-           (,command ,command-form)
-           (,may-kill-p ,may-kill-p-form))
-       (xmtn-automate-with-session (,session ,root)
-         (xmtn-automate-with-command (,handle
-                                      ,session ,command
-                                      :may-kill-p ,may-kill-p)
-           (xmtn-automate-command-check-for-and-report-error ,handle)
-           (xmtn-automate-command-wait-until-finished ,handle)
-           (xmtn-basic-io-with-stanza-parser (,parser
-                                              (xmtn-automate-command-buffer
-                                               ,handle))
-             ,@body))))))
+           (,command ,command-form))
+       (let* ((,session (xmtn-automate-cache-session ,root))
+              (,handle (xmtn-automate--new-command ,session ,command)))
+         (xmtn-automate-command-wait-until-finished ,handle)
+         (prog1
+             (xmtn-basic-io-with-stanza-parser
+                 (,parser (xmtn-automate-command-buffer ,handle))
+               ,@body)
+           (xmtn-automate--cleanup-command ,handle))))))
 
 ;;;###autoload
 (defun xmtn-dvc-log-edit-file-name-func (&optional root)
   (concat (file-name-as-directory (or root (dvc-tree-root)))
           "_MTN/log"))
 
-(defun xmtn--tree-default-branch (root)
-  (xmtn-automate-simple-command-output-line root `("get_option" "branch")))
-
-(defun xmtn--tree-has-changes-p-future (root)
-  (lexical-let ((future
-                 (xmtn--command-output-lines-future
-                  root
-                  ;; Isn't there a better solution to this?
-                  `("ls" "changed"))))
-    (lambda ()
-      (not (endp (funcall future))))))
-
 (defun xmtn--toposort (root revision-hash-ids)
   (xmtn-automate-simple-command-output-lines root
                                              `("toposort"
                                                ,@revision-hash-ids)))
-
-(defun xmtn--insert-log-edit-hints (root branch buffer prefix normalized-files)
-  (with-current-buffer buffer
-    (flet ((insert-line (&optional format-string-or-null &rest format-args)
-             (if format-string-or-null
-                 (let ((line (apply #'format
-                                    format-string-or-null format-args)))
-                   (assert (not (position ?\n line)))
-                   (insert prefix line ?\n))
-               (assert (endp format-args))
-               (insert prefix ?\n))))
-      (save-excursion
-        ;; Launching these mtn processes in parallel is a noticeable
-        ;; speedup (~14% on some informal benchmarks).  At least it
-        ;; was with the version that I benchmarked, etc.
-        (xmtn-automate-with-session (nil root)
-          (let* ((unknown-future (xmtn--unknown-files-future root))
-                 (missing-future (xmtn--missing-files-future root))
-                 (consistent-p-future (xmtn--tree-consistent-p-future root))
-                 (heads (xmtn--heads root branch))
-                 (inconsistent-p (not (funcall consistent-p-future)))
-                 (revision (if inconsistent-p
-                               nil
-                             (xmtn--get-revision root `(local-tree ,root))))
-                 (missing (funcall missing-future)))
-            (when inconsistent-p
-              (insert-line
-               "WARNING: Tree is not consistent.")
-              (insert-line "Commit will fail unless you fix this first.")
-              (insert-line))
-            (when missing
-              (insert-line "%s missing file(s):" (length missing))
-              (dolist (file missing) (insert-line "%s" file))
-              (insert-line)
-              (insert-line))
-            (insert-line "Committing on branch:")
-            (insert-line branch)
-            (insert-line)
-            (unless
-                (let* ((parents (xmtn--revision-old-revision-hash-ids revision))
-                       (all-parents-are-heads-p
-                        (subsetp parents heads :test #'equal))
-                       (all-heads-are-parents-p
-                        (subsetp heads parents :test #'equal)))
-                  (cond ((and (not all-heads-are-parents-p)
-                              (not all-parents-are-heads-p))
-                         (insert-line "This commit will create divergence.")
-                         (insert-line))
-                        ((not all-heads-are-parents-p)
-                         (insert-line (concat "Divergence will continue to exist"
-                                              " after this commit."))
-                         (insert-line))
-                        (t
-                         (progn)))))
-            (case normalized-files
-              (all
-               (insert-line "All files selected for commit."))
-              (t
-               (insert-line "File(s) selected for commit:")
-               ;; Normalized file names are easier to read when coming
-               ;; from dired buffer, since otherwise, they would contain
-               ;; the entire path.
-               (dolist (file
-                        ;; Sort in an attempt to match the order of
-                        ;; "patch" lines, below.
-                        (sort (copy-list normalized-files) #'string<))
-                 (insert-line "%s" file))))
-            ;; Due to the possibility of race conditions, this check
-            ;; doesn't guarantee the operation will succeed.
-            (if inconsistent-p
-                ;; FIXME: Since automate get_revision can't deal with
-                ;; inconsistent workspaces, we should be using
-                ;; automate inventory instead.
-                (progn (insert-line)
-                       (insert-line
-                        (concat "Unable to compute modified files while"
-                                " the tree is inconsistent.")))
-              (let ((committed-changes (list))
-                    (other-changes (list)))
-                (flet ((collect (path message)
-                                (if (or (eql normalized-files 'all)
-                                        (member path normalized-files))
-                                    (push message committed-changes)
-                                  (push message other-changes))))
-                  (loop
-                   for (path) in (xmtn--revision-delete revision)
-                   do (collect path (format "delete    %s" path)))
-                  (loop
-                   for (from to) in (xmtn--revision-rename revision)
-                   ;; FIXME: collect from or collect to?  Monotone
-                   ;; doesn't specify how restrictions work for
-                   ;; renamings.
-                   do (collect to   (format "rename %s to %s" from to)))
-                  (loop
-                   for (path) in (xmtn--revision-add-dir revision)
-                   do (collect path (format "add_dir   %s" path)))
-                  (loop
-                   for (path contents)
-                   in (xmtn--revision-add-file revision)
-                   do (collect path (format "add_file  %s" path)))
-                  (loop
-                   for (path from-contents to-contents)
-                   in (xmtn--revision-patch-file revision)
-                   do (collect path (format "patch     %s" path)))
-                  (loop
-                   for (path attr-name)
-                   in (xmtn--revision-clear-attr revision)
-                   do (collect path (format "clear %s %s"
-                                            path attr-name)))
-                  (loop
-                   for (path attr-name attr-value)
-                   in (xmtn--revision-set-attr revision)
-                   do (collect path (format "set %s %s %s"
-                                            path attr-name attr-value))))
-                (setq committed-changes (nreverse committed-changes))
-                (setq other-changes (nreverse other-changes))
-                (loop
-                 for (lines heading-if heading-if-not) in
-                 `((,committed-changes
-                    ,(format "%s change(s) in selected files:"
-                             (length committed-changes))
-                    "No changes in selected files.")
-                   (,other-changes
-                    ,(format
-                      "%s change(s) in files not selected for commit:"
-                      (length other-changes))
-                    "No changes in files not selected for commit."))
-                 do
-                 (insert-line)
-                 (insert-line "%s" (if lines heading-if heading-if-not))
-                 (dolist (line lines) (insert-line "%s" line)))))
-            (let ((unknown (funcall unknown-future)))
-              (insert-line)
-              (if (endp unknown)
-                  (insert-line "No unknown files.")
-                (insert-line "%s unknown file(s):" (length unknown))
-                (dolist (file unknown) (insert-line "%s" file))))))))
-    (cond ((eql (point) (point-min))
-           ;; We take this as an indicator that there is no log message
-           ;; yet.  So insert a blank line.
-           (insert "\n")
-           (goto-char (point-min)))
-          (t
-           ;; Moving up onto the last line of the log message seems to
-           ;; be better than having the cursor sit at the ## prefix of
-           ;; the first line of our hints.
-           (forward-line -1))))
-  nil)
 
 (add-to-list 'format-alist
              '(xmtn--log-file
@@ -290,8 +126,14 @@ the file before saving."
       (add-to-list 'buffer-file-format 'xmtn--log-file) ;; FIXME: generalize to dvc--log-file
       )))
 
+(defun xmtn-dvc-log-message ()
+  "Return --message-file argument string, if any."
+  (let ((log-edit-file "_MTN/log"))
+    (if (file-exists-p log-edit-file)
+        (concat "--message-file=" log-edit-file))))
+
 ;;;###autoload
-(defun xmtn-dvc-log-edit-done ()
+(defun xmtn-dvc-log-edit-done (&optional prompt-branch)
   (let* ((root default-directory)
          (files (or (with-current-buffer dvc-partner-buffer
                       (dvc-current-file-list 'nil-if-none-marked))
@@ -308,14 +150,28 @@ the file before saving."
          (excluded-files
           (with-current-buffer dvc-partner-buffer
             (xmtn--normalize-file-names root (dvc-fileinfo-excluded-files))))
-         (branch (xmtn--tree-default-branch root)))
+         (branch (if prompt-branch
+                     (progn
+                       ;; an automate session caches the original
+                       ;; options, and will not use the new branch.
+                       (let ((session (xmtn-automate-get-cached-session (dvc-uniquify-file-name root))))
+                         (if session (xmtn-automate--close-session session)))
+                       (read-from-minibuffer "branch: " (xmtn--tree-default-branch root)))
+                   (xmtn--tree-default-branch root))))
     ;; Saving the buffer will automatically delete any log edit hints.
     (save-buffer)
     (dvc-save-some-buffers root)
+
+    ;; check that the first line says something; it should be a summary of the rest
+    (goto-char (point-min))
+    (forward-line)
+    (if (= (point) (1+ (point-min)))
+        (error "Please put a summary comment on the first line"))
+
     ;; We used to check for things that would make commit fail;
     ;; missing files, nothing to commit. But that just slows things
     ;; down in the typical case; better to just handle the error
-    ;; message, which is way more informative anyway.
+    ;; message, which is nicely informative anyway.
     (lexical-let* ((progress-message
                     (case normalized-files
                       (all (format "Committing all files in %s" root))
@@ -326,20 +182,12 @@ the file before saving."
                            (t
                             (format "Committing %s files in %s"
                                     (length normalized-files)
-                                    root))))))
-                   (log-edit-buffer (current-buffer))
-                   (log-edit-file (buffer-file-name))
-                   (commit-message-file
-                    (xmtn--make-temp-file
-                     (concat (expand-file-name log-edit-file) "-xmtn")
-                     nil ".tmp")))
-      ;; Monotone's rule that _MTN/log must not exist when committing
-      ;; non-interactively is really a pain to deal with.
-      (rename-file log-edit-file commit-message-file t)
+                                    root)))))))
       (xmtn--run-command-async
        root
-       `("commit" ,(concat "--message-file=" commit-message-file)
+       `("commit" ,(xmtn-dvc-log-message)
          ,(concat "--branch=" branch)
+         "--non-interactive"
          ,@(case normalized-files
              (all
               (if excluded-files
@@ -352,11 +200,9 @@ the file before saving."
                  "--depth=0"
                  "--" normalized-files))))
        :error (lambda (output error status arguments)
-                (rename-file commit-message-file log-edit-file)
                 (dvc-default-error-function output error
                                             status arguments))
        :killed (lambda (output error status arguments)
-                 (rename-file commit-message-file log-edit-file)
                  (dvc-default-killed-function output error
                                               status arguments))
        :finished (lambda (output error status arguments)
@@ -364,17 +210,24 @@ the file before saving."
                    ;; Monotone creates an empty log file when the
                    ;; commit was successful.  Let's not interfere with
                    ;; that.  (Calling `dvc-log-close' would.)
-                   (delete-file commit-message-file)
-                   (kill-buffer log-edit-buffer)
+
+                   ;; we'd like to delete log-edit-buffer here, but we
+                   ;; can't do that from a process sentinel. And we'd
+                   ;; have to find it; it may not be current buffer,
+                   ;; if log-edit-done was invoked from the ediff
+                   ;; window.
+
                    (dvc-diff-clear-buffers 'xmtn
                                            default-directory
                                            "* Just committed! Please refresh buffer"
                                            (xmtn--status-header
                                             default-directory
-                                            (xmtn--get-base-revision-hash-id-or-null default-directory)))))
-      ;; Show message _after_ spawning command to override DVC's
-      ;; debugging message.
-      (message "%s... " progress-message))
+                                            (xmtn--get-base-revision-hash-id-or-null default-directory)))
+                   ))
+
+       ;; Show message _after_ spawning command to override DVC's
+       ;; debugging message.
+       (message "%s... " progress-message))
     (set-window-configuration dvc-pre-commit-window-configuration)))
 
 ;; The term "normalization" here has nothing to do with Unicode
@@ -448,11 +301,7 @@ the file before saving."
                   :dir (file-name-directory path)
                   :file (file-name-nondirectory path)
                   :status status
-                  :more-status (if orig-path
-                                   (if (eq status 'rename-target)
-                                       (concat "from " orig-path)
-                                     (concat "to " orig-path))
-                                 ""))))))
+                  :more-status (or orig-path ""))))))
            (likely-dir-p (path) (string-match "/\\'" path)))
 
       ;; First parse the basic_io contained in dvc-header, if any.
@@ -522,16 +371,39 @@ the file before saving."
 
 
 ;;;###autoload
-(defun xmtn-dvc-diff (&optional base-rev path dont-switch)
-  (xmtn-dvc-delta base-rev (list 'xmtn (list 'local-tree (xmtn-tree-root path))) dont-switch))
+(defun xmtn-dvc-diff (&optional rev path dont-switch)
+  ;; If rev is an ancestor of base-rev of path, then rev is from, path
+  ;; is 'to', and vice versa.
+  ;;
+  ;; Note rev might be a string mtn selector, so we have to use
+  ;; resolve-revision-id to process it.
+  (let ((workspace (list 'xmtn (list 'local-tree (xmtn-tree-root path))))
+        (base (xmtn--get-base-revision-hash-id-or-null path))
+        (rev-string (cadr (xmtn--resolve-revision-id path rev))))
+    (if (string= rev-string base)
+        ;; local changes in workspace are 'to'
+        (xmtn-dvc-delta rev workspace dont-switch)
+      (let ((descendents (xmtn-automate-simple-command-output-lines path (list "descendents" base)))
+            (done nil))
+        (while descendents
+          (if (string= rev-string (car descendents))
+              ;; rev is newer than workspace; rev is 'to'
+              (progn
+                (xmtn-dvc-delta workspace rev dont-switch)
+                (setq done t)))
+          (setq descendents (cdr descendents)))
+        (if (not done)
+            ;; rev is ancestor of workspace; workspace is 'to'
+            (xmtn-dvc-delta rev workspace dont-switch))))))
 
 (defvar xmtn-diff-mode-map
   (let ((map (make-sparse-keymap)))
+    (define-key map "CM" 'xmtn-conflicts-merge)
+    (define-key map "CP" 'xmtn-conflicts-propagate)
+    (define-key map "CR" 'xmtn-conflicts-review)
+    (define-key map "CC" 'xmtn-conflicts-clean)
     (define-key map "MH" 'xmtn-view-heads-revlist)
-    (define-key map "MC" 'xmtn-conflicts-propagate)
-    (define-key map "MR" 'xmtn-conflicts-review)
     (define-key map "MP" 'xmtn-propagate-from)
-    (define-key map "Mx" 'xmtn-conflicts-clean)
     map))
 
 ;; items added here should probably also be added to xmtn-revlist-mode-menu, -map in xmtn-revlist.el
@@ -550,65 +422,75 @@ the file before saving."
 
 (dvc-add-uniquify-directory-mode 'xmtn-diff-mode)
 
+(defun xmtn--rev-to-option (resolved from)
+  "Return a string contaiing the mtn diff command-line option for RESOLVED-REV.
+If FROM is non-nil, RESOLVED-REV is assumed older than workspace;
+otherwise newer."
+  (ecase (car resolved)
+    ('local-tree
+     (if from
+         (progn
+           ;; FIXME: --reverse is not in mtn 0.44; bump overall
+           ;; required version on new mtn release
+           (let ((xmtn--minimum-required-command-version '(0 45)))
+             (xmtn--check-cached-command-version)
+             "--reverse"))
+       ""))
+    ('revision (concat "--revision=" (cadr resolved)))))
+
 ;;;###autoload
 (defun xmtn-dvc-delta (from-revision-id to-revision-id &optional dont-switch)
-  ;; See dvc-unified.el dvc-delta for doc string. That says that
-  ;; neither id can be local-tree. However, we also use this as the
-  ;; implementation of xmtn-dvc-diff, so we need to handle local-tree.
+  ;; See dvc-unified.el dvc-delta for doc string. If strings, they must be mtn selectors.
   (let* ((root (dvc-tree-root))
          (from-resolved (xmtn--resolve-revision-id root from-revision-id))
          (to-resolved (xmtn--resolve-revision-id root to-revision-id)))
-    (lexical-let ((buffer
-                   (dvc-prepare-changes-buffer `(xmtn ,from-resolved) `(xmtn ,to-resolved) 'diff root 'xmtn))
-                  (dont-switch dont-switch))
-      (buffer-disable-undo buffer)
+    (let ((diff-buffer
+           (dvc-prepare-changes-buffer `(xmtn ,from-resolved) `(xmtn ,to-resolved) 'diff root 'xmtn))
+          (rev-specs (list (xmtn--rev-to-option from-resolved t)
+                           (xmtn--rev-to-option to-resolved nil))))
+      (buffer-disable-undo diff-buffer)
       (dvc-save-some-buffers root)
-      (let ((rev-specs
-             `(,(xmtn-match
-                    from-resolved
-                  ((local-tree $path)
-                   ;; FROM-REVISION-ID is not a committed revision, but the
-                   ;; workspace.  mtn diff can't directly handle
-                   ;; this case.
-                   (error "not implemented"))
-
-                  ((revision $hash-id)
-                   (concat "--revision=" hash-id)))
-
-               ,@(xmtn-match
-                     to-resolved
-                   ((local-tree $path)
-                    (assert (xmtn--same-tree-p root path))
-
-                    ;; mtn diff will abort if there are missing
-                    ;; files. But checking for that is a slow
-                    ;; operation, so allow user to bypass it. We use
-                    ;; dvc-confirm-update rather than a separate
-                    ;; option, because dvc-confirm-update will be
-                    ;; set t for the same reason this would.
-                    (if dvc-confirm-update
-                        (unless (funcall (xmtn--tree-consistent-p-future root))
-                          (error "There are missing files in local tree; unable to diff. Try dvc-status.")))
-                    `())
-
-                   ((revision $hash-id)
-                    `(,(concat "--revision=" hash-id)))))))
-
-        ;; IMPROVEME: Could use automate content_diff and get_revision.
+      (lexical-let* ((diff-buffer diff-buffer))
         (xmtn--run-command-async
          root `("diff" ,@rev-specs)
-         :related-buffer buffer
+         :related-buffer diff-buffer
          :finished
          (lambda (output error status arguments)
            (with-current-buffer output
              (xmtn--remove-content-hashes-from-diff))
            (dvc-show-changes-buffer output 'xmtn--parse-diff-for-dvc
-                                    buffer dont-switch "^="))))
+                                    diff-buffer t "^="))))
 
-      (xmtn--display-buffer-maybe buffer dont-switch)
+      (xmtn--display-buffer-maybe diff-buffer dont-switch)
 
       ;; The call site in `dvc-revlist-diff' needs this return value.
-      buffer)))
+      diff-buffer)))
+
+(defvar xmtn-status-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "CM" 'xmtn-conflicts-merge)
+    (define-key map "CP" 'xmtn-conflicts-propagate)
+    (define-key map "CR" 'xmtn-conflicts-review)
+    (define-key map "CC" 'xmtn-conflicts-clean)
+    (define-key map "MP" 'xmtn-propagate-from)
+    (define-key map "MH" 'xmtn-view-heads-revlist)
+    map))
+
+(easy-menu-define xmtn-status-mode-menu xmtn-status-mode-map
+  "Mtn specific status menu."
+  `("DVC-Mtn"
+    ["View Heads" xmtn-view-heads-revlist t]
+    ["Show merge conflicts" xmtn-conflicts-merge t]
+    ["Show propagate conflicts" xmtn-conflicts-propagate t]
+    ["Review conflicts" xmtn-conflicts-review t]
+    ["Propagate branch" xmtn-propagate-from t]
+    ["Clean conflicts resolutions" xmtn-conflicts-clean t]
+    ))
+
+(define-derived-mode xmtn-status-mode dvc-status-mode "xmtn-status"
+  "Add back-end-specific commands for dvc-status.")
+
+(add-to-list 'uniquify-list-buffers-directory-modes 'xmtn-status-mode)
 
 (defun xmtn--remove-content-hashes-from-diff ()
   ;; Hack: Remove mtn's file content hashes from diff headings since
@@ -641,18 +523,6 @@ the file before saving."
       xmtn-dvc-automate-version
     (setq xmtn-dvc-automate-version
           (string-to-number (xmtn--command-output-line nil '("automate" "interface_version"))))))
-
-(defun xmtn--unknown-files-future (root)
-  (xmtn--command-output-lines-future root '("ls" "unknown")))
-
-(defun xmtn--missing-files-future (root)
-  (xmtn--command-output-lines-future root '("ls" "missing")))
-
-(defun xmtn--tree-consistent-p-future (root)
-  ;; FIXME: Should also check for file/dir mismatches.
-  (lexical-let ((missing-files-future (xmtn--missing-files-future root)))
-    (lambda ()
-      (null (funcall missing-files-future)))))
 
 (defun xmtn--changes-image (change)
   (ecase change
@@ -827,32 +697,31 @@ the file before saving."
   ;; command execution yet.
   (let*
       ((base-revision (xmtn--get-base-revision-hash-id-or-null root))
+       (branch (xmtn--tree-default-branch root))
+       (head-revisions (xmtn--heads root branch))
+       (head-count (length head-revisions))
        (status-buffer
-        (dvc-prepare-changes-buffer
-         `(xmtn (revision ,base-revision))
-         `(xmtn (local-tree ,root))
-         'status
+        (dvc-status-prepare-buffer
+         'xmtn
          root
-         'xmtn)))
+         ;; FIXME: just pass header
+         ;; base-revision
+         (if base-revision (format "%s" base-revision) "none")
+         ;; branch
+         (format "%s" branch)
+         ;; header-more
+         (lambda ()
+           (concat
+            (case head-count
+              (0 "  branch is empty\n")
+              (1 "  branch is merged\n")
+              (t (dvc-face-add (format "  branch has %s heads; need merge\n" head-count) 'dvc-conflict)))
+            (if (member base-revision head-revisions)
+                "  base revision is a head revision\n"
+              (dvc-face-add "  base revision is not a head revision; need update\n" 'dvc-conflict))))
+         ;; refresh
+         'xmtn-dvc-status)))
     (dvc-save-some-buffers root)
-    (dvc-switch-to-buffer-maybe status-buffer)
-    (dvc-kill-process-maybe status-buffer)
-    ;; Attempt to make sure the sentinels have a chance to run.
-    (accept-process-output)
-    (let ((processes (dvc-processes-related-to-buffer status-buffer)))
-      (when processes
-        (error "Process still running in buffer %s" status-buffer)))
-
-    (with-current-buffer status-buffer
-      (setq buffer-read-only t)
-      (buffer-disable-undo)
-      (setq dvc-buffer-refresh-function 'xmtn-dvc-status)
-      (ewoc-set-hf dvc-fileinfo-ewoc
-                   (xmtn--status-header root base-revision)
-                   "")
-      (ewoc-enter-last dvc-fileinfo-ewoc (make-dvc-fileinfo-message :text "Running monotone..."))
-      (ewoc-refresh dvc-fileinfo-ewoc))
-
     (lexical-let* ((status-buffer status-buffer))
       (xmtn--run-command-async
        root `("automate" "inventory"
@@ -863,14 +732,8 @@ the file before saving."
                      (not dvc-status-display-ignored)
                      '("--no-ignored")))
        :finished (lambda (output error status arguments)
-                   ;; Don't use `dvc-show-changes-buffer' here because
-                   ;; it attempts to do some regexp stuff for us that we
-                   ;; don't need to be done.
+                   (dvc-status-inventory-done status-buffer)
                    (with-current-buffer status-buffer
-                     (ewoc-enter-last dvc-fileinfo-ewoc (make-dvc-fileinfo-message :text "Parsing inventory..."))
-                     (ewoc-refresh dvc-fileinfo-ewoc)
-                     (dvc-redisplay t)
-                     (dvc-fileinfo-delete-messages)
                      (let ((excluded-files (dvc-default-excluded-files)))
                        (xmtn-basic-io-with-stanza-parser
                            (parser output)
@@ -891,6 +754,7 @@ the file before saving."
                                            :text (concat " no changes in workspace")))
                          (ewoc-refresh dvc-fileinfo-ewoc)))))
        :error (lambda (output error status arguments)
+                ;; FIXME: need `dvc-status-error-in-process', or change name.
                 (dvc-diff-error-in-process
                  status-buffer
                  (format "Error running mtn with arguments %S" arguments)
@@ -1051,20 +915,6 @@ the file before saving."
   (xmtn--run-command-sync root
                           `("add" "--" ,@file-names)))
 
-(defun xmtn--file-registered-p (root file-name)
-  ;; FIXME: need a better way to implement this
-  (let ((normalized-file-name (xmtn--normalize-file-name root file-name)))
-    (block parse
-      (xmtn--with-automate-command-output-basic-io-parser
-          (parser root `("inventory"))
-        (xmtn--parse-inventory parser
-                               (lambda (path status changes old-path new-path
-                                             old-type new-type fs-type)
-                                 (when (equal normalized-file-name path)
-                                   (return-from parse
-                                     t)))))
-      nil)))
-
 ;;;###autoload
 (defun xmtn-dvc-add-files (&rest files)
   (xmtn--add-files (dvc-tree-root) files))
@@ -1192,107 +1042,82 @@ finished."
                                               nil)
   nil)
 
-(defun xmtn--do-disapprove-future (root revision-hash-id)
-  ;; Returns a future so the calling code can block on its completion
-  ;; if it wants to.
-  (check-type root string)
-  (check-type revision-hash-id xmtn--hash-id)
-  (xmtn--command-output-lines-future root `("disapprove" ,revision-hash-id)))
-
-(defun xmtn--do-update (root target-revision-hash-id changes-p)
+(defun xmtn--do-update (root target-revision-hash-id post-update-p)
   (check-type root string)
   (check-type target-revision-hash-id xmtn--hash-id)
   (lexical-let ((progress-message (format "Updating tree %s to revision %s"
-                                          root target-revision-hash-id)))
-    (let ((command `("update" ,(concat "--revision=" target-revision-hash-id)))
+                                          root target-revision-hash-id))
+                (post-update-p post-update-p))
+    (let ((command `("update" "--move-conflicting-paths" ,(concat "--revision=" target-revision-hash-id)))
           (post-process
            (lambda ()
              (message "%s... done" progress-message)
-             (dvc-revert-some-buffers default-directory)
-             (dvc-diff-clear-buffers 'xmtn
-                                     default-directory
-                                     "* Just updated; please refresh buffer"
-                                     (xmtn--status-header
-                                      default-directory
-                                      (xmtn--get-base-revision-hash-id-or-null default-directory)))))
+             (if post-update-p
+                 (progn
+                   (dvc-revert-some-buffers default-directory)
+                   (dvc-diff-clear-buffers 'xmtn
+                                           default-directory
+                                           "* Just updated; please refresh buffer"
+                                           (xmtn--status-header
+                                            default-directory
+                                            (xmtn--get-base-revision-hash-id-or-null default-directory)))))))
           )
 
       (message "%s..." progress-message)
-      (if changes-p
-          (xmtn--run-command-that-might-invoke-merger root command post-process)
-        (xmtn--run-command-sync root command)
-        (funcall post-process)))
+      ;; this used to have an option to call '--might-invoke-merger'; could be simplified.
+      (xmtn--run-command-sync root command)
+      (funcall post-process))
     nil))
 
-(defun xmtn--update-after-confirmation (root target-revision-hash-id)
+(defun xmtn--update (root target-revision-hash-id check-id-p no-ding)
   ;; mtn will just give an innocuous message if already updated, which
   ;; the user won't see. So check that here - it's fast.
-  (when (equal (xmtn--get-base-revision-hash-id root) target-revision-hash-id)
-    (error "Tree %s is already based on target revision %s"
-           root target-revision-hash-id))
-  (dvc-save-some-buffers root)
-  (let (changes-p)
-    (if dvc-confirm-update
-        (progn
-          ;; tree-has-changes-p and update will break if tree is
-          ;; inconsistent, so check that first. But it's a slow check,
-          ;; so don't bother if not confirming; error message from
-          ;; update is clear.
-          (unless (funcall (xmtn--tree-consistent-p-future root))
-            (error "Tree is inconsistent, unable to update"))
-          (unless (y-or-n-p
-                   (format (concat "Update tree %s to revision %s? ")
-                           root target-revision-hash-id))
-            (error "Aborted update"))
-
-          ;; has-changes-p is also a slow check. xmtn--do-update will
-          ;; show a "possible merger" window if changes-p is true;
-          ;; experienced users who set dvc-confirm-update don't need
-          ;; that.
-          (setq changes-p (funcall (xmtn--tree-has-changes-p-future root)))
-          (when changes-p
-            (unless (yes-or-no-p
-                     (format (concat
-                              "Tree %s contains uncommitted changes.  Update anyway? ")
-                             root))
-              (error "Aborted update")))))
-    (xmtn--do-update root target-revision-hash-id changes-p))
-  nil)
+  ;; Don't throw an error; upper level might be doing other directories as well.
+  (if (and check-id-p
+           (equal (xmtn--get-base-revision-hash-id-or-null root) target-revision-hash-id))
+      (progn
+        (unless no-ding (ding))
+        (message "Tree %s is already based on target revision %s"
+                 root target-revision-hash-id))
+    (dvc-save-some-buffers root)
+    (xmtn--do-update root target-revision-hash-id check-id-p)))
 
 ;;;###autoload
-(defun xmtn-dvc-update (&optional revision-id)
+(defun xmtn-dvc-update (&optional revision-id no-ding)
   (let ((root (dvc-tree-root)))
-    (xmtn-automate-with-session (nil root)
-      (if revision-id
-          (xmtn--update-after-confirmation root (xmtn--revision-hash-id revision-id))
+    (if revision-id
+        (xmtn--update root (xmtn--revision-hash-id revision-id) t no-ding)
 
-        (let* ((branch (xmtn--tree-default-branch root))
-               (heads (xmtn--heads root branch)))
-          (case (length heads)
-            (0 (assert nil))
-            (1
-             (xmtn--update-after-confirmation root (first heads)))
+      (let* ((branch (xmtn--tree-default-branch root))
+             (heads (xmtn--heads root branch)))
+        (case (length heads)
+          (0
+           (error "branch %s has no revisions" branch))
 
-            (t
-             ;; User can choose one head from a revlist, or merge them.
-             (error (substitute-command-keys
-                     (concat "Branch %s is unmerged (%s heads)."
-                             "  Try \\[xmtn-view-heads-revlist] and \\[dvc-merge] or \\[dvc-revlist-update]"))
-                    branch (length heads))))))))
+          (1
+           (xmtn--update root (first heads) t no-ding))
+
+          (t
+           ;; User can choose one head from a revlist, or merge them.
+           (error (substitute-command-keys
+                   (concat "Branch %s is unmerged (%s heads)."
+                           "  Try \\[xmtn-view-heads-revlist] and \\[dvc-merge] or \\[dvc-revlist-update]"))
+                  branch (length heads)))))))
   nil)
 
-(defun xmtn-propagate-from (other)
+(defun xmtn-propagate-from (other &optional cached-branch)
   "Propagate from OTHER branch to local tree branch."
   (interactive "MPropagate from branch: ")
   (let*
       ((root (dvc-tree-root))
-       (local-branch (xmtn--tree-default-branch root))
+       (local-branch (or cached-branch
+                         (xmtn--tree-default-branch root)))
        (resolve-conflicts
         (if (file-exists-p (concat root "/_MTN/conflicts"))
             (progn
-              (xmtn-conflicts-check-mtn-version)
               "--resolve-conflicts-file=_MTN/conflicts")))
-       (cmd (list "propagate" other local-branch resolve-conflicts))
+       (cmd (list "propagate" other local-branch resolve-conflicts
+                  (xmtn-dvc-log-message)))
        (prompt
         (if resolve-conflicts
             (concat "Propagate from " other " to " local-branch " resolving conflicts? ")
@@ -1300,37 +1125,49 @@ finished."
 
     (save-some-buffers t); conflicts file may be open.
 
-    (if (not (yes-or-no-p prompt))
-        (error "user abort"))
+    (if xmtn-confirm-operation
+        (if (not (yes-or-no-p prompt))
+            (error "user abort")))
 
     (lexical-let
-        ((display-buffer (current-buffer)))
-      (message "%s..." (mapconcat (lambda (item) item) cmd " "))
-      (xmtn--run-command-that-might-invoke-merger
-       root cmd
-       (lambda () (xmtn--refresh-status-header display-buffer))))))
+        ((display-buffer (current-buffer))
+         (msg (mapconcat (lambda (item) item) cmd " ")))
+      (message "%s..." msg)
+      (if xmtn-confirm-operation
+          (xmtn--run-command-that-might-invoke-merger
+           root cmd
+           (lambda ()
+             (xmtn--refresh-status-header display-buffer)
+             (message "%s... done" msg)))
+        (xmtn--run-command-sync root cmd)
+        (xmtn--refresh-status-header display-buffer)
+        (message "%s... done" msg)))))
+
+(defun xmtn-dvc-merge-1 (root refresh-status)
+  (xmtn--run-command-sync
+   root
+   (list
+    "merge"
+    (if (file-exists-p (concat root "/_MTN/conflicts"))
+        "--resolve-conflicts-file=_MTN/conflicts")
+    (xmtn-dvc-log-message)))
+  (if refresh-status
+      (xmtn--refresh-status-header (current-buffer))))
 
 ;;;###autoload
 (defun xmtn-dvc-merge (&optional other)
   (if other
       (xmtn-propagate-from other)
     ;; else merge heads
-    (let ((root (dvc-tree-root)))
-      (lexical-let
-          ((display-buffer (current-buffer)))
-        (xmtn-automate-with-session
-            (nil root)
-          (let* ((branch (xmtn--tree-default-branch root))
-                 (heads (xmtn--heads root branch)))
-            (case (length heads)
-              (0 (assert nil))
-              (1
-               (message "already merged"))
-              (t
-               (xmtn--run-command-that-might-invoke-merger
-                root
-                '("merge")
-                (lambda () (xmtn--refresh-status-header display-buffer))))))))))
+    (let* ((root (dvc-tree-root))
+           (branch (xmtn--tree-default-branch root))
+           (heads (xmtn--heads root branch)))
+      (case (length heads)
+        (0 (assert nil))
+        (1
+         (message "already merged"))
+        (t
+         (xmtn-dvc-merge-1 root t)))))
   nil)
 
 ;;;###autoload
@@ -1358,20 +1195,16 @@ finished."
   (let ((root (dvc-tree-root)))
     (assert (not (endp file-names)))
     (dvc-save-some-buffers root)
-    (let ((normalized-file-names (xmtn--normalize-file-names root file-names)))
-      (lexical-let
-          ((root root)
-           (progress-message
-            (if (eql (length file-names) 1)
-                (format "Reverting file %s" (first file-names))
-              (format "Reverting %s files" (length file-names)))))
-        (message "%s..." progress-message)
-        (xmtn--run-command-sync root `("revert" "--"
-                                       ,@normalized-file-names)
-                                :finished
-                                (lambda (output error status arguments)
-                                  (message "%s... done" progress-message)))
-        (dvc-revert-some-buffers root))))
+    (let ((normalized-file-names (xmtn--normalize-file-names root file-names))
+          (progress-message
+           (if (eql (length file-names) 1)
+               (format "Reverting file %s" (first file-names))
+             (format "Reverting %s files" (length file-names)))))
+      (message "%s..." progress-message)
+      (xmtn--run-command-sync root `("revert" "--"
+                                     ,@normalized-file-names))
+      (message "%s... done" progress-message))
+    (dvc-revert-some-buffers root))
   nil)
 
 ;;;###autoload
@@ -1387,76 +1220,62 @@ finished."
   (xmtn--revision-get-file-helper file `(revision ,@stuff)))
 
 (defun xmtn--revision-get-file-helper (file backend-id)
-  "Fill current buffer with the contents of FILE revision BACKEND-ID."
+  "Fill current buffer with the contents of FILE in revision BACKEND-ID."
   (let ((root (dvc-tree-root)))
-    (xmtn-automate-with-session (nil root)
-      (let* ((normalized-file (xmtn--normalize-file-name root file))
-             (corresponding-file
-              (xmtn--get-corresponding-path root normalized-file
-                                            `(local-tree ,root) backend-id)))
-        (if (null corresponding-file)
-            ;; File doesn't exist.  Since this function is (as far
-            ;; as I know) only called from diff-like functions, a
-            ;; missing file is not an error but just means the diff
-            ;; should be computed against an empty file.  So just
-            ;; leave the buffer empty.
-            (progn)
-          (let ((temp-dir nil))
-            (unwind-protect
-                (progn
-                  (setq temp-dir (xmtn--make-temp-file
-                                  "xmtn--revision-get-file-" t))
-                  ;; Going through a temporary file and using
-                  ;; `insert-file-contents' in conjunction with as
-                  ;; much of the original file name as possible seems
-                  ;; to be the best way to make sure that Emacs'
-                  ;; entire file coding system detection logic is
-                  ;; applied.  Functions like
-                  ;; `find-operation-coding-system' and
-                  ;; `find-file-name-handler' are not a complete
-                  ;; replacement since they don't look at the contents
-                  ;; at all.
-                  (let ((temp-file (concat temp-dir "/" corresponding-file)))
-                    (make-directory (file-name-directory temp-file) t)
-                    (with-temp-file temp-file
-                      (xmtn--set-buffer-multibyte nil)
-                      (setq buffer-file-coding-system 'binary)
-                      (xmtn--insert-file-contents-by-name root backend-id corresponding-file (current-buffer)))
-                    (let ((output-buffer (current-buffer)))
-                      (with-temp-buffer
-                        (insert-file-contents temp-file)
-                        (let ((input-buffer (current-buffer)))
-                          (with-current-buffer output-buffer
-                            (insert-buffer-substring input-buffer)))))))
-              (when temp-dir
-                (dvc-delete-recursively temp-dir)))))))))
+    (let ((normalized-file (xmtn--normalize-file-name root file))
+          (temp-dir nil))
+      (unwind-protect
+          (progn
+            (setq temp-dir (make-temp-file
+                            "xmtn--revision-get-file-" t))
+            ;; Going through a temporary file and using
+            ;; `insert-file-contents' in conjunction with as
+            ;; much of the original file name as possible seems
+            ;; to be the best way to make sure that Emacs'
+            ;; entire file coding system detection logic is
+            ;; applied.  Functions like
+            ;; `find-operation-coding-system' and
+            ;; `find-file-name-handler' are not a complete
+            ;; replacement since they don't look at the contents
+            ;; at all.
+            (let ((temp-file (concat temp-dir "/" normalized-file)))
+              (make-directory (file-name-directory temp-file) t)
+              (with-temp-file temp-file
+                (set-buffer-multibyte nil)
+                (setq buffer-file-coding-system 'binary)
+                (xmtn--insert-file-contents-by-name root backend-id normalized-file (current-buffer)))
+              (let ((output-buffer (current-buffer)))
+                (with-temp-buffer
+                  (insert-file-contents temp-file)
+                  (let ((input-buffer (current-buffer)))
+                    (with-current-buffer output-buffer
+                      (insert-buffer-substring input-buffer)))))))
+        (when temp-dir
+          (dvc-delete-recursively temp-dir))))))
 
 (defun xmtn--get-file-by-id (root file-id save-as)
   "Store contents of FILE-ID in file SAVE-AS."
-  (xmtn-automate-with-session
-   (nil root)
-   (with-temp-file save-as
-     (xmtn--set-buffer-multibyte nil)
-     (setq buffer-file-coding-system 'binary)
-     (xmtn--insert-file-contents root file-id (current-buffer)))))
+  (with-temp-file save-as
+    (set-buffer-multibyte nil)
+    (setq buffer-file-coding-system 'binary)
+    (xmtn--insert-file-contents root file-id (current-buffer))))
 
 (defun xmtn--revision-parents (root revision-hash-id)
   (xmtn-automate-simple-command-output-lines root
                                              `("parents" ,revision-hash-id)))
 
 (defun xmtn--get-content-changed (root backend-id normalized-file)
-  (xmtn-automate-with-session (nil root)
-    (xmtn-match (xmtn--resolve-backend-id root backend-id)
-      ((local-tree $path) (error "Not implemented"))
-      ((revision $revision-hash-id)
-       (xmtn--with-automate-command-output-basic-io-parser
-           (parser root `("get_content_changed" ,revision-hash-id
-                          ,normalized-file))
-         (loop for stanza = (funcall parser)
-               while stanza
-               collect (xmtn-match stanza
-                         ((("content_mark" (id $previous-id)))
-                          previous-id))))))))
+  (xmtn-match (xmtn--resolve-backend-id root backend-id)
+    ((local-tree $path) (error "Not implemented"))
+    ((revision $revision-hash-id)
+     (xmtn--with-automate-command-output-basic-io-parser
+         (parser root `("get_content_changed" ,revision-hash-id
+                        ,normalized-file))
+       (loop for stanza = (funcall parser)
+             while stanza
+             collect (xmtn-match stanza
+                       ((("content_mark" (id $previous-id)))
+                        previous-id)))))))
 
 (defun xmtn--limit-length (list n)
   (or (null n) (<= (length list) n)))
@@ -1478,109 +1297,99 @@ finished."
     current-set))
 
 (defun xmtn--get-content-changed-closure (root backend-id normalized-file last-n)
-  (xmtn-automate-with-session (nil root)
-    (lexical-let ((root root))
-      (labels ((changed-self-or-ancestors (entry)
-                (destructuring-bind (hash-id file-name) entry
-                  (check-type file-name string)
-                  ;; get-content-changed can return one or two revisions
-                  (loop for next-change-id in (xmtn--get-content-changed
-                                               root `(revision ,hash-id)
-                                               file-name)
-                        for corresponding-path =
-                        (xmtn--get-corresponding-path-raw root file-name
-                                                          hash-id next-change-id)
-                        when corresponding-path
-                        collect `(,next-change-id ,corresponding-path))))
-               (changed-proper-ancestors (entry)
-                                         (destructuring-bind (hash-id file-name) entry
-                                           (check-type file-name string)
-                                           ;; revision-parents can return one or two revisions
-                                           (loop for parent-id in (xmtn--revision-parents root hash-id)
-                                                 for path-in-parent =
-                                                 (xmtn--get-corresponding-path-raw root file-name
-                                                                                   hash-id parent-id)
-                                                 when path-in-parent
-                                                 append (changed-self-or-ancestors
-                                                         `(,parent-id ,path-in-parent))))))
-        (xmtn--close-set
-         #'changed-proper-ancestors
-         (xmtn-match (xmtn--resolve-backend-id root backend-id)
-           ((local-tree $path) (error "Not implemented"))
-           ((revision $id) (changed-self-or-ancestors
-                            `(,id ,normalized-file))))
-         last-n)))))
-
-
-(defun xmtn--get-corresponding-path-raw (root normalized-file-name
-                                              source-revision-hash-id
-                                              target-revision-hash-id)
-  (check-type normalized-file-name string)
-  (xmtn--with-automate-command-output-basic-io-parser
-      (next-stanza root `("get_corresponding_path"
-                          ,source-revision-hash-id
-                          ,normalized-file-name
-                          ,target-revision-hash-id))
-    (xmtn-match (funcall next-stanza)
-      (nil nil)
-      ((("file" (string $result)))
-       (assert (null (funcall next-stanza)))
-       result))))
-
+  (lexical-let ((root root))
+    (labels ((changed-self-or-ancestors (entry)
+               (destructuring-bind (hash-id file-name) entry
+                 (check-type file-name string)
+                 ;; get-content-changed can return one or two revisions
+                 (loop for next-change-id in (xmtn--get-content-changed
+                                              root `(revision ,hash-id)
+                                              file-name)
+                       for corresponding-path =
+                       (xmtn--get-corresponding-path-raw root file-name
+                                                         hash-id next-change-id)
+                       when corresponding-path
+                       collect `(,next-change-id ,corresponding-path))))
+             (changed-proper-ancestors (entry)
+                                       (destructuring-bind (hash-id file-name) entry
+                                         (check-type file-name string)
+                                         ;; revision-parents can return one or two revisions
+                                         (loop for parent-id in (xmtn--revision-parents root hash-id)
+                                               for path-in-parent =
+                                               (xmtn--get-corresponding-path-raw root file-name
+                                                                                 hash-id parent-id)
+                                               when path-in-parent
+                                               append (changed-self-or-ancestors
+                                                       `(,parent-id ,path-in-parent))))))
+      (xmtn--close-set
+       #'changed-proper-ancestors
+       (xmtn-match (xmtn--resolve-backend-id root backend-id)
+         ((local-tree $path) (error "Not implemented"))
+         ((revision $id) (changed-self-or-ancestors
+                          `(,id ,normalized-file))))
+       last-n))))
 
 (defun xmtn--get-corresponding-path (root normalized-file-name
                                           source-revision-backend-id
                                           target-revision-backend-id)
+  ;; normalized-file-name is a file in
+  ;; source-revision-backend-id. Return its name in
+  ;; target-revision-backend-id.
   (block get-corresponding-path
-    (xmtn-automate-with-session (nil root)
-      (let (source-revision-hash-id
-            target-revision-hash-id
-            (file-name-postprocessor #'identity))
-        (let ((resolved-source-revision
-               (xmtn--resolve-backend-id root source-revision-backend-id))
-              (resolved-target-revision
-               (xmtn--resolve-backend-id root target-revision-backend-id)))
-          (xmtn-match resolved-source-revision
-            ((revision $hash-id)
-             (setq source-revision-hash-id hash-id))
-            ((local-tree $path)
-             (assert (xmtn--same-tree-p root path))
-             (let ((base-revision-hash-id
-                    (xmtn--get-base-revision-hash-id-or-null path)))
-               (if (null base-revision-hash-id)
-                   (xmtn-match resolved-target-revision
-                     ((revision $hash-id)
-                      (return-from get-corresponding-path nil))
-                     ((local-tree $target-path)
-                      (assert (xmtn--same-tree-p path target-path))
-                      (return-from get-corresponding-path normalized-file-name)))
-                 (setq normalized-file-name (xmtn--get-rename-in-workspace-to
-                                             path normalized-file-name))
-                 (setq source-revision-hash-id base-revision-hash-id)))))
-          (xmtn-match resolved-target-revision
-            ((revision $hash-id)
-             (setq target-revision-hash-id hash-id))
-            ((local-tree $path)
-             (assert (xmtn--same-tree-p root path))
-             (let ((base-revision-hash-id
-                    (xmtn--get-base-revision-hash-id-or-null path)))
-               (if (null base-revision-hash-id)
-                   (return-from get-corresponding-path nil)
-                 (setq target-revision-hash-id base-revision-hash-id
-                       file-name-postprocessor
-                       (lexical-let ((path path))
-                         (lambda (file-name)
-                           (xmtn--get-rename-in-workspace-from path
-                                                               file-name)))))))))
-        (let ((result
-               (xmtn--get-corresponding-path-raw root normalized-file-name
-                                                 source-revision-hash-id
-                                                 target-revision-hash-id)))
-          (if (null result)
-              nil
-            (funcall file-name-postprocessor result)))))))
+    (let (source-revision-hash-id
+          target-revision-hash-id
+          (file-name-postprocessor #'identity))
+      (let ((resolved-source-revision
+             (xmtn--resolve-backend-id root source-revision-backend-id))
+            (resolved-target-revision
+             (xmtn--resolve-backend-id root target-revision-backend-id)))
+        (xmtn-match resolved-source-revision
+          ((revision $hash-id)
+           (setq source-revision-hash-id hash-id))
+          ((local-tree $path)
+           (assert (xmtn--same-tree-p root path))
+           (let ((base-revision-hash-id
+                  (xmtn--get-base-revision-hash-id-or-null path)))
+             (if (null base-revision-hash-id)
+                 (xmtn-match resolved-target-revision
+                   ((revision $hash-id)
+                    (return-from get-corresponding-path nil))
+                   ((local-tree $target-path)
+                    (assert (xmtn--same-tree-p path target-path))
+                    (return-from get-corresponding-path normalized-file-name)))
+               ;; Handle an uncommitted rename in the current workspace
+               (setq normalized-file-name (xmtn--get-rename-in-workspace-to
+                                           path normalized-file-name))
+               (setq source-revision-hash-id base-revision-hash-id)))))
+
+        (xmtn-match resolved-target-revision
+          ((revision $hash-id)
+           (setq target-revision-hash-id hash-id))
+          ((local-tree $path)
+           (assert (xmtn--same-tree-p root path))
+           (let ((base-revision-hash-id
+                  (xmtn--get-base-revision-hash-id-or-null path)))
+             (if (null base-revision-hash-id)
+                 (return-from get-corresponding-path nil)
+               (setq target-revision-hash-id base-revision-hash-id)
+               ;; Handle an uncommitted rename in the current workspace
+               (setq file-name-postprocessor
+                     (lexical-let ((path path))
+                       (lambda (file-name)
+                         (xmtn--get-rename-in-workspace-from path
+                                                             file-name)))))))))
+      (let ((result
+             (xmtn--get-corresponding-path-raw root normalized-file-name
+                                               source-revision-hash-id
+                                               target-revision-hash-id)))
+        (if (null result)
+            nil
+          (funcall file-name-postprocessor result))))))
 
 (defun xmtn--get-rename-in-workspace-from (root normalized-source-file-name)
+  ;; Given a workspace ROOT and a file name
+  ;; NORMALIZED-SOURCE-FILE-NAME in the base revision of the
+  ;; workspace, return the current name of that file in the workspace.
   ;; FIXME: need a better way to implement this
   (check-type normalized-source-file-name string)
   (block parse
@@ -1596,6 +1405,10 @@ finished."
     normalized-source-file-name))
 
 (defun xmtn--get-rename-in-workspace-to (root normalized-target-file-name)
+  ;; Given a workspace ROOT and a file name
+  ;; NORMALIZED-TARGET-FILE-NAME in the current revision of the
+  ;; workspace, return the name of that file in the base revision of
+  ;; the workspace.
   ;; FIXME: need a better way to implement this
   (check-type normalized-target-file-name string)
   (block parse
@@ -1610,25 +1423,6 @@ finished."
                                  (return-from parse
                                    old-path)))))
     normalized-target-file-name))
-
-(defun xmtn--manifest-find-file (root manifest normalized-file-name)
-  (let ((matches (remove* normalized-file-name
-                          (remove* 'file manifest :key #'first :test-not #'equal)
-                          :key #'second :test-not #'equal)))
-    (xmtn--assert-optional (member (length matches) '(0 1)))
-    (first matches)))
-
-(defun xmtn--revision-manifest-file-entry (root backend-id
-                                                normalized-file-name)
-  (let ((manifest (xmtn--get-manifest root backend-id)))
-    (xmtn--manifest-find-file root manifest normalized-file-name)))
-
-(defun xmtn--revision-file-contents-hash (root backend-id normalized-file-name)
-  (xmtn-match (xmtn--revision-manifest-file-entry root backend-id
-                                                  normalized-file-name)
-    ((file $relative-path $file-contents-hash $attrs)
-     (assert (equal relative-path normalized-file-name))
-     file-contents-hash)))
 
 (defun xmtn--file-contents-as-string (root content-hash-id)
   (check-type content-hash-id xmtn--hash-id)
@@ -1653,51 +1447,6 @@ finished."
 (defun xmtn--same-tree-p (a b)
   (equal (file-truename a) (file-truename b)))
 
-(defun xmtn--get-manifest (root backend-id)
-  (xmtn-automate-with-session (nil root)
-    (let ((resolved-id (xmtn--resolve-backend-id root backend-id)))
-      (xmtn--with-automate-command-output-basic-io-parser
-          (parser root `("get_manifest_of"
-                         ,@(xmtn-match resolved-id
-                             ((local-tree $path)
-                              ;; FIXME: I don't really know what to do if
-                              ;; PATH is not the same as ROOT.  Maybe
-                              ;; revision id resolution needs to return
-                              ;; the proper root, too.
-                              (assert (xmtn--same-tree-p root path))
-                              (unless (funcall
-                                       (xmtn--tree-consistent-p-future root))
-                                (error "Tree is inconsistent, unable to get manifest"))
-                              '())
-                             ((revision $hash-id)
-                              `(,hash-id)))))
-        (assert (equal (funcall parser) '(("format_version" (string "1")))))
-        (loop for stanza = (funcall parser)
-              while stanza
-              collect (xmtn-match stanza
-                        ((("dir" (string $normalized-path)))
-                         (let ((dir (decode-coding-string
-                                     normalized-path
-                                     'xmtn--monotone-normal-form)))
-                           (xmtn--assert-optional
-                            (or (equal dir "")
-                                (not (eql (aref dir (1- (length dir))) ?/))))
-                           `(dir ,dir)))
-                        ((("file" (string $normalized-path))
-                          ("content" (id $hash-id))
-                          . $attrs)
-                         `(file
-                           ,(decode-coding-string
-                             normalized-path 'xmtn--monotone-normal-form)
-                           ,hash-id
-                           ,(mapcar (lambda (attr-entry)
-                                      (xmtn-match attr-entry
-                                        (("attr"
-                                          (string $attr-name)
-                                          (string $attr-value))
-                                         (list attr-name attr-value))))
-                                    attrs)))))))))
-
 (defstruct (xmtn--revision (:constructor xmtn--make-revision))
   ;; matches data output by 'mtn diff'
   new-manifest-hash-id
@@ -1710,35 +1459,6 @@ finished."
   clear-attr
   set-attr
   )
-
-
-(defun xmtn--get-revision (root backend-id)
-  (xmtn-automate-with-session (nil root)
-    (let ((resolved-id (xmtn--resolve-backend-id root backend-id)))
-      (xmtn--with-automate-command-output-basic-io-parser
-          (parser root `("get_revision"
-                         ,@(xmtn-match resolved-id
-                             ((local-tree $path)
-                              ;; FIXME: I don't really know what to do if
-                              ;; PATH is not the same as ROOT.  Maybe
-                              ;; revision id resolution needs to return
-                              ;; the proper root, too.
-                              (assert (xmtn--same-tree-p root path))
-                              (unless (funcall
-                                       (xmtn--tree-consistent-p-future root))
-                                (error (concat "Tree is inconsistent,"
-                                               " unable to compute revision")))
-                              '())
-                             ((revision $hash-id)
-                              `(,hash-id)))))
-        (assert (equal (funcall parser) '(("format_version" (string "1")))))
-        (let ((new-manifest-hash-id (xmtn-match (funcall parser)
-                                      ((("new_manifest" (id $hash-id)))
-                                       hash-id))))
-          (let ((proto-revision (xmtn--parse-partial-revision parser)))
-            (setf (xmtn--revision-new-manifest-hash-id proto-revision)
-                  new-manifest-hash-id)
-            proto-revision))))))
 
 (defun xmtn--parse-partial-revision (parser)
   "Parse basic_io output from get_revision, starting with the old_revision stanzas."

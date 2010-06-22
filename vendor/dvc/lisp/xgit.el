@@ -1,6 +1,6 @@
 ;;; xgit.el --- git interface for dvc
 
-;; Copyright (C) 2006-2008 by all contributors
+;; Copyright (C) 2006-2009 by all contributors
 
 ;; Author: Stefan Reichoer <stefan@xsteve.at>
 ;; Contributions from:
@@ -66,15 +66,45 @@
   (xgit-dvc-add-files file))
 
 ;;;###autoload
+(defun xgit-add-patch (files)
+  ;; this is somehow a dirty hack. DVC should have it's own
+  ;; hunk-by-hunk staging feature, but waiting for that, 'git add -p'
+  ;; is sooo nice, let's use it through term.el
+  "Add FILES to the current git project using 'git add --patch ...'.
+If FILES is nil, just run 'git add --patch'"
+  (interactive (list (list (expand-file-name (dvc-confirm-read-file-name "Add file or directory: ")))))
+  (require 'term)
+  (let* ((root (dvc-tree-root (car files)))
+         (default-directory root)
+         (buffer (dvc-get-buffer-create 'xgit 'add-patch))
+         (args (mapcar (lambda (f)
+                         (file-relative-name (dvc-uniquify-file-name
+                                              f) root))
+                       files)))
+    (switch-to-buffer
+     (eval `(term-ansi-make-term ,(buffer-name buffer)
+                                 ,xgit-executable nil "add" "-p" "--"
+                                 ,@args)))))
+
+(defun xgit-add-patch-all ()
+  "Call `xgit-add-patch' without argument, to run plain 'git add -p'"
+  (interactive)
+  (xgit-add-patch nil))
+
+;;;###autoload
 (defun xgit-dvc-add-files (&rest files)
-  "Run git add."
+  "Run git add.
+
+When called with a prefix argument, use `xgit-add-patch'."
   (dvc-trace "xgit-add-files: %s" files)
-  (let ((default-directory (xgit-tree-root)))
-    (dvc-run-dvc-sync 'xgit (append '("add")
-                                    (mapcar #'file-relative-name files))
-                      :finished (dvc-capturing-lambda
-                                    (output error status arguments)
-                                  (message "git add finished")))))
+  (if current-prefix-arg
+      (xgit-add-patch files)
+    (let ((default-directory (xgit-tree-root)))
+      (dvc-run-dvc-sync 'xgit (append '("add")
+                                      (mapcar #'file-relative-name files))
+                        :finished (dvc-capturing-lambda
+                                      (output error status arguments)
+                                    (message "git add finished"))))))
 
 ;;;###autoload
 (defun xgit-remove (file &optional force)
@@ -294,7 +324,12 @@ conflict, added, modified, renamed, copied, deleted, unknown."
 
 (defun xgit-status-verbose ()
   (interactive)
-  (xgit-status t))
+  (xgit-dvc-status t))
+
+(defun xgit-status-add-patch ()
+  "Run `xgit-add-patch' on selected files."
+  (interactive)
+  (xgit-add-patch (dvc-current-file-list)))
 
 (defun xgit-status-add-u ()
   "Run \"git add -u\" and refresh current buffer."
@@ -323,7 +358,13 @@ This reset the index to HEAD, but doesn't touch files."
 (defvar xgit-diff-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map [?A] 'xgit-status-add-u)
-    (define-key map [?R] 'xgit-status-reset-mixed)
+    (define-key map [?G ?r] 'xgit-status-reset-mixed)
+    (define-key map [?G ?p] 'xgit-status-add-patch)
+    (define-key map [?G ?P] 'xgit-add-patch-all)
+    ;; 's'taged.
+    (define-key map [?G ?s] 'xgit-diff-cached)
+    ;; 'u'nstaged.
+    (define-key map [?G ?u] 'xgit-diff-index)
     map))
 
 (easy-menu-define xgit-diff-mode-menu xgit-diff-mode-map
@@ -486,6 +527,21 @@ When called with a prefix argument, ask for the fetch source."
       (setq repository (read-string "Git fetch from: "))))
   (dvc-run-dvc-async 'xgit (list "fetch" repository)))
 
+(defun* xgit-push (url &optional (branch "master"))
+    "Run 'git push url'.
+with prefix arg ask for branch, default to master."
+  (interactive "sGit push to: ")
+  (lexical-let ((branch-name (if current-prefix-arg
+                             (read-string "Which Branch?: ")
+                             branch))
+                (to url))
+    (dvc-run-dvc-async 'xgit (list "push" url branch-name)
+                       :finished
+                       (dvc-capturing-lambda (output error status arguments)
+                         (if (eq status 0)
+                             (message "xgit-push <%s> to <%s> finished" branch-name to)
+                             (dvc-switch-to-buffer error))))))
+
 ;;;###autoload
 (defun xgit-pull (&optional repository)
   "Call git pull.
@@ -614,7 +670,15 @@ filenames of to pass to git-show.
 If FILES is nil and `xgit-show-filter-filename-func' is non-nil,
 files changed in the revision is passed to
 `xgit-show-filter-filename-func' and result is used."
-  (interactive (list default-directory (read-string "Revision: ")))
+  (interactive (list default-directory
+                     (read-string "Revision (default: HEAD): "
+                                  (let ((candidate (thing-at-point
+                                                    'word)))
+                                    (when (and candidate
+                                               (string-match "[0-9a-f]"
+                                                             candidate))
+                                      candidate))
+                                  nil "HEAD")))
   (if (and (null files) xgit-show-filter-filename-func)
       (setq files (funcall xgit-show-filter-filename-func
                            (xgit-changed-files dir rev))))
@@ -637,7 +701,7 @@ files changed in the revision is passed to
                                 (insert (format "git %s\n\n"
                                                 (mapconcat #'identity
                                                            args " ")))
-                                (diff-mode)
+                                (dvc-diff-mode)
                                 (toggle-read-only 1)))))))))
 
 (defvar xgit-describe-regexp "^\\(.*?\\)-\\([0-9]+\\)-g[[:xdigit:]]\\{7\\}")
@@ -673,7 +737,8 @@ FILE is filename in the repository at DIR."
   (let* ((buffer (dvc-get-buffer-create 'xgit 'annotate))
          (repo (xgit-git-dir-option dir))
          (cmd "blame")
-         (fname (file-relative-name file (xgit-tree-root dir)))
+         (fname (file-relative-name (dvc-uniquify-file-name file)
+                                    (xgit-tree-root dir)))
          (args (list repo cmd "--" fname)))
     (dvc-switch-to-buffer-maybe buffer)
     (dvc-run-dvc-sync 'xgit args
@@ -696,6 +761,77 @@ FILE is filename in the repository at DIR."
          (default-directory (xgit-tree-root filename)))
     (xgit-do-annotate default-directory filename)
     (goto-line line)))
+
+(defun xgit-stash-save (message)
+  "Run git-stash."
+  (interactive "sComment: ")
+  (if (equal message "")
+      (dvc-run-dvc-sync 'xgit (list "stash"))
+      (dvc-run-dvc-sync 'xgit (list "stash" "save" message))))
+
+(defun xgit-stash-list (&optional only-list)
+  "Run git-stash list."
+  (interactive)
+  (dvc-run-dvc-display-as-info 'xgit (list "stash" "list"))
+  (when only-list
+    (with-current-buffer "*xgit-info*"
+      (let ((stash-list (split-string (buffer-string) "\n")))
+        (loop for i in stash-list
+           with s = nil
+           collect (car (split-string i ":")) into s
+           finally (return s))))))
+
+(defun xgit-stash-apply (&optional stash)
+  "Run git-stash apply."
+  (interactive)
+  (if current-prefix-arg
+      (save-window-excursion
+        (let ((sl (xgit-stash-list t))
+              stash-num)
+          (setq stash-num (dvc-completing-read "Stash: " sl))
+          (dvc-run-dvc-sync 'xgit (list "stash" "apply" stash-num))))
+      (dvc-run-dvc-sync 'xgit (list "stash" "apply"))))
+
+(defun xgit-stash-clear ()
+  "Run git-stash clear."
+  (interactive)
+  (dvc-run-dvc-sync 'xgit (list "stash" "clear"))
+  (message "All stash deleted")) ;; TODO run message in :finished
+
+(defun xgit-stash-drop (&optional stash)
+  "Run git-stash drop."
+  (interactive)
+  (if current-prefix-arg
+      (let ((sl (xgit-stash-list t))
+            stash-num)
+        (save-window-excursion
+          (setq stash-num (dvc-completing-read "Stash: " sl)))
+        (dvc-run-dvc-sync 'xgit (list "stash" "drop" stash-num)))
+      (dvc-run-dvc-sync 'xgit (list "stash" "drop"))))
+
+(defun xgit-stash-pop (&optional stash)
+  "Run git-stash pop."
+  (interactive)
+  (if current-prefix-arg
+      (let ((sl (xgit-stash-list t))
+            stash-num)
+        (save-window-excursion
+          (setq stash-num (dvc-completing-read "Stash: " sl)))
+        (dvc-run-dvc-sync 'xgit (list "stash" "pop" stash-num)))
+      (dvc-run-dvc-sync 'xgit (list "stash" "pop"))))
+
+(defun xgit-stash-show (&optional stash)
+  "Run git-stash show."
+  (interactive)
+  (if current-prefix-arg
+      (let ((sl (xgit-stash-list t))
+            stash-num)
+        (save-window-excursion
+          (setq stash-num (dvc-completing-read "Stash: " sl)))
+        (dvc-run-dvc-display-as-info 'xgit (list "stash" "show" "-p" stash-num)))
+      (dvc-run-dvc-display-as-info 'xgit (list "stash" "show" "-p")))
+  (with-current-buffer "*xgit-info*"
+    (diff-mode)))
 
 (defun xgit-tag-list ()
   "Run \"git tag\" and list all defined tags"
@@ -780,7 +916,9 @@ LAST-REVISION looks like
              file last-revision)
   (let* ((xgit-rev (int-to-string (1- (nth 1 last-revision))))
          (default-directory (car last-revision))
-         (fname (file-relative-name file (xgit-tree-root))))
+         (fname (file-relative-name
+                 (dvc-uniquify-file-name file)
+                 (xgit-tree-root))))
     (insert (dvc-run-dvc-sync
              'xgit (list "cat-file" "blob"
                          (format "HEAD~%s:%s" xgit-rev fname))

@@ -1,4 +1,4 @@
-This is dvc.info, produced by makeinfo version 4.8 from ./dvc.texinfo.
+This is dvc.info, produced by makeinfo version 4.11 from ./dvc.texinfo.
 
 INFO-DIR-SECTION Emacs
 START-INFO-DIR-ENTRY
@@ -829,7 +829,7 @@ File: dvc.info,  Node: Mailing Lists,  Next: Wiki,  Prev: Internals,  Up: Top
 
 There is one mailing list for DVC.
 
-   `dvc-el-dev@gna.org' intended for the discussion of development
+   `dvc-dev@gna.org' intended for the discussion of development
 versions of DVC.  Users of development versions of DVC should subscribe
 to this list.  Bugs should also be reported to this list.
 
@@ -949,49 +949,49 @@ File: dvc.info,  Node: Variable Index,  Prev: Concept Index,  Up: Top
 
 
 Tag Table:
-Node: Top315
-Node: Installation2205
-Node: Dependencies2607
-Node: MS Windows4011
-Node: Hooking into GNU Emacs6256
-Node: DVC Tla Tour7156
-Node: A tutorial guide to DVC7758
-Node: Register an tla archive8555
-Node: Bookmarking a project9185
-Node: Creating a branch of a project and getting a project tree10267
-Node: Finding and merging missing patches11746
-Node: Reviewing and committing your changes12998
-Node: First contact14070
-Node: Tla Archive Browsing15245
-Node: Editing Files15734
-Node: Committing Files16345
-Node: Using Bookmarks17756
-Node: Bookmarks basics18022
-Node: Using bookmarks for distributed development18852
-Node: Bookmarks groups21067
-Node: Transmit patches via email21879
-Node: Send patches via Gnus22283
-Node: Receive/Apply patches via Gnus23358
-Node: Use cases24617
-Node: Anarchic development24857
-Node: Star-shaped development25063
-Node: Maintainer25740
-Node: Missing patches26264
-Node: Reviewing patches27735
-Node: Patch-log Generation28679
-Node: Contributor29777
-Node: Trouble Shooting29989
-Node: Customization31104
-Node: Internals31344
-Node: Mailing Lists31557
-Node: Wiki32001
-Node: Changes32211
-Node: The Latest Version32590
-Node: The Future32919
-Node: Known Bugs33211
-Node: TODO List33873
-Node: Thanks34119
-Node: Concept Index34228
-Node: Variable Index34807
+Node: Top316
+Node: Installation2206
+Node: Dependencies2608
+Node: MS Windows4012
+Node: Hooking into GNU Emacs6257
+Node: DVC Tla Tour7157
+Node: A tutorial guide to DVC7759
+Node: Register an tla archive8556
+Node: Bookmarking a project9186
+Node: Creating a branch of a project and getting a project tree10268
+Node: Finding and merging missing patches11747
+Node: Reviewing and committing your changes12999
+Node: First contact14071
+Node: Tla Archive Browsing15246
+Node: Editing Files15735
+Node: Committing Files16346
+Node: Using Bookmarks17757
+Node: Bookmarks basics18023
+Node: Using bookmarks for distributed development18853
+Node: Bookmarks groups21068
+Node: Transmit patches via email21880
+Node: Send patches via Gnus22284
+Node: Receive/Apply patches via Gnus23359
+Node: Use cases24618
+Node: Anarchic development24858
+Node: Star-shaped development25064
+Node: Maintainer25741
+Node: Missing patches26265
+Node: Reviewing patches27736
+Node: Patch-log Generation28680
+Node: Contributor29778
+Node: Trouble Shooting29990
+Node: Customization31105
+Node: Internals31345
+Node: Mailing Lists31558
+Node: Wiki31999
+Node: Changes32209
+Node: The Latest Version32588
+Node: The Future32917
+Node: Known Bugs33209
+Node: TODO List33871
+Node: Thanks34117
+Node: Concept Index34226
+Node: Variable Index34805
 
 End Tag Table
