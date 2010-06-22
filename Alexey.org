@@ -787,6 +787,14 @@ You will also need to change the values for the location of bibtex
     ("verbatim\\*?"        . "\\\\end[ \t\n]*{[ \t\n]*verbatim\\*?[ \t\n]*}"))))
 #+end_src
 
+*** Autopair mode
+    Enable autopair mode. See http://emacs-fu.blogspot.com/2010/06/automatic-pairing-of-brackets-and.html
+#+srcname: skeleton-mode
+#+begin_src emacs-lisp
+    (require 'autopair)
+    (autopair-global-mode 1)
+    (setq autopair-autowrap t)
+#+end_src
 *** Skeleton mode
     Enable skeleton mode in ESS for paired insertion
 #+srcname: skeleton-mode
