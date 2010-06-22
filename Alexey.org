@@ -43,7 +43,7 @@ You will also need to change the values for the location of bibtex
 #+begin_src emacs-lisp 
   ;; (require 'desktop-menu)
   
-  ;; (desktop-save-mode t)
+  (desktop-save-mode t)
   (setq history-length 250)
 
   (add-to-list 'desktop-modes-not-to-save 'dired-mode)
@@ -417,11 +417,19 @@ You will also need to change the values for the location of bibtex
     (autopair-global-mode 1)
     (setq autopair-autowrap t)
 #+end_src
+
 *** Tabkey2 mode
 #+begin_src emacs-lisp
   (require 'tabkey2)
   ;; (tabkey2-mode t)
 #+end_src
+
+*** Bookmark+
+  Mostly for ability to bookmark desktops
+#+begin_src emacs-lisp 
+  (require 'bookmark+)  
+#+end_src
+
 ** LaTeX Customizations and settings
 *** Use MikTeX
 #+srcname: miktex
