@@ -38,6 +38,20 @@ You will also need to change the values for the location of bibtex
            (normal-top-level-add-subdirs-to-load-path)))
 #+end_src
 ** Miscellaneous Settings and starter-kit overrides
+*** Save session
+#+srcname: desktop
+#+begin_src emacs-lisp 
+  ;; (require 'desktop-menu)
+  
+  ;; (desktop-save-mode t)
+  (setq history-length 250)
+
+  (add-to-list 'desktop-modes-not-to-save 'dired-mode)
+  (add-to-list 'desktop-modes-not-to-save 'Info-mode)
+  (add-to-list 'desktop-modes-not-to-save 'info-lookup-mode)
+  (add-to-list 'desktop-modes-not-to-save 'fundamental-mode)
+#+end_src
+
 *** Window size
 #+srcname: window_size
 #+begin_src emacs-lisp
