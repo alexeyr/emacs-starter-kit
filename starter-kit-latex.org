@@ -24,10 +24,10 @@ This is part of the [[file:starter-kit.org][Emacs Starter Kit]].
 #+end_src
 
 ** Configure AucTeX 
-*** Use MikTeX
-#+srcname: miktex
+*** Use math-mode
+#+srcname: math-mode
 #+begin_src emacs-lisp 
-  (require 'tex-mik)
+  (add-hook 'LaTeX-mode-hook 'LaTeX-math-mode)
 #+end_src
 *** Use pdfLaTeX
     - Take this out to compile to DVI, instead.

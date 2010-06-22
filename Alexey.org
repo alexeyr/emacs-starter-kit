@@ -326,7 +326,7 @@ You will also need to change the values for the location of bibtex
     too late. I had to put it in a separate org file of its own.
 #+srcname: spelling-mode
 #+begin_src emacs-lisp :tangle no
- (setq ispell-program-name "aspell"
+  (setq ispell-program-name "aspell"
       ispell-dictionary "english"
       ispell-dictionary-alist
       (let ((default '("[A-Za-z]" "[^A-Za-z]" "[']" nil
@@ -359,7 +359,10 @@ You will also need to change the values for the location of bibtex
     ("\\(figure\\|table\\)\\*?"     ispell-tex-arg-end 0)
     ("list"                                 ispell-tex-arg-end 2)
     ("program"             . "\\\\end[ \t\n]*{[ \t\n]*program[ \t\n]*}")
-    ("verbatim\\*?"        . "\\\\end[ \t\n]*{[ \t\n]*verbatim\\*?[ \t\n]*}"))))
+    ("verbatim\\*?"        . "\\\\end[ \t\n]*{[ \t\n]*verbatim\\*?[
+    \t\n]*}"))))
+
+  ;; (add-hook 'LaTeX-mode-hook 'flyspell-mode)
 #+end_src
 
 *** Skeleton mode
@@ -401,25 +404,42 @@ You will also need to change the values for the location of bibtex
     (setq autopair-autowrap t)
 #+end_src
 ** LaTeX Customizations and settings
-   AUCTeX, SyncTeX, XeLaTeX, RefTeX.
+*** Use MikTeX
+#+srcname: miktex
+#+begin_src emacs-lisp 
+  (require 'tex-mik)
+#+end_src
+
+*** Make emacs aware of multi-file projects
+#+begin_src emacs-lisp
+  (setq-default TeX-master nil)
+#+end_src
+
+*** Always use math mode
+#+begin_src emacs-lisp
+  (add-hook 'LaTeX-mode-hook 'LaTeX-math-mode)
+#+end_src
+
+*** Automatically wrap paragraphs
+#+begin_src emacs-lisp
+  (add-hook 'LaTeX-mode-hook 'auto-fill-mode)
+#+end_src
+
+*** Make emacs aware of multi-file projects
+#+begin_src emacs-lisp
+  (setq-default TeX-master nil)
+#+end_src
+
 *** SyncTeX, PDF mode
 #+srcname: local-loadpath
 #+begin_src emacs-lisp
-   ;; Synctex with Skim
-   ;;(add-hook 'TeX-mode-hook
-   ;;(lambda ()
-   ;;(add-to-list 'TeX-output-view-style
-   ;;'("^pdf$" "."
-   ;; "/Applications/Skim.app/Contents/SharedSupport/displayline %n %o %b")))
-   ;; )
-
-   ;; Make emacs aware of multi-file projects
-   (setq-default TeX-master nil)
-
-   ;; ;; Auto-raise Emacs on activation (from Skim, usually)
-   ;; (defun raise-emacs-on-aqua()
-   ;; (shell-command "osascript -e 'tell application \"Emacs\" to activate' &"))
-   ;; (add-hook 'server-switch-hook 'raise-emacs-on-aqua)
+  ;; Synctex with Skim
+  ;;(add-hook 'TeX-mode-hook
+  ;;(lambda ()
+  ;;(add-to-list 'TeX-output-view-style
+  ;;'("^pdf$" "."
+  ;; "/Applications/Skim.app/Contents/SharedSupport/displayline %n %o %b")))
+  ;; )
 #+end_src
 
 *** RefTeX
