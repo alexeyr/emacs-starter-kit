@@ -131,6 +131,7 @@ You will also need to change the values for the location of bibtex
     to wrap around. 
 #+srcname: local-windmove
 #+begin_src emacs-lisp
+(windmove-default-keybindings 'meta)
 (setq windmove-wrap-around t)
 #+end_src
 
