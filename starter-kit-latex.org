@@ -24,11 +24,16 @@ This is part of the [[file:starter-kit.org][Emacs Starter Kit]].
 #+end_src
 
 ** Configure AucTeX 
+*** Use MikTeX
+#+srcname: miktex
+#+begin_src emacs-lisp 
+  (require 'tex-mik)
+#+end_src
 *** Use pdfLaTeX
     - Take this out to compile to DVI, instead.
 #+srcname: pdf-mode
 #+begin_src emacs-lisp 
-      (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode)
+  (add-hook 'LaTeX-mode-hook 'TeX-PDF-mode)
 #+end_src
 
 *** Set a Path to Executables (optional)
