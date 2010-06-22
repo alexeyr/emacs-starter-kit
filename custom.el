@@ -3,10 +3,6 @@
   ;; If you edit it by hand, you could mess it up, so be careful.
   ;; Your init file should contain only one such instance.
   ;; If there is more than one, they won't work right.
- '(LaTeX-XeTeX-command "xelatex -synctex=1")
- '(TeX-engine (quote xetex))
- '(TeX-view-program-list (quote (("Skim" "/Applications/Skim.app/Contents/SharedSupport/displayline %n %o %b"))))
- '(TeX-view-program-selection (quote (((output-dvi style-pstricks) "dvips and gv") (output-dvi "xdvi") (output-pdf "Skim") (output-html "xdg-open"))))
  '(appmenu-mode t)
  '(cua-mode t nil (cua-base))
  '(emacsw32-max-frames t)
