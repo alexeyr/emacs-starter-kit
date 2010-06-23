@@ -1,0 +1,15 @@
+* Starter Kit Version Control
+This part of the Emacs Starter Kit activates the Viper Vim emulator with Vimpulse extensions
+
+** Vimpulse
+Vimpulse extends Viper with Vim features like Visual mode and text objects. I basically don't
+see any point in using Viper without Vimpulse.
+- [[http://www.emacswiki.org/emacs/Vimpulse][Homepage]]
+- [[http://www.assembla.com/spaces/vimpulse/trac_git_tool][Git repository]]
+#+begin_src emacs-lisp
+  (add-to-list 'load-path
+               (expand-file-name "vimpulse"
+                                 (expand-file-name "src"
+                                                   dotfiles-dir)))
+  (require 'vimpulse)
+#+end_src
