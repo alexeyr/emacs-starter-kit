@@ -65,9 +65,14 @@ You will also need to change the values for the location of bibtex
 #+end_src
 
 *** Default font
+Uncomment the second one if Unicode characters absent from Consolas
+are needed.
 #+begin_src emacs-lisp
   (unless (null (x-list-fonts "Consolas 11"))
     (set-default-font "Consolas 11"))
+
+;;  (unless (null (x-list-fonts "DejaVu Sans Mono"))
+;;    (set-default-font "DejaVu Sans Mono"))
 #+end_src
 
 *** Recent File Menu
