@@ -66,7 +66,8 @@ You will also need to change the values for the location of bibtex
 
 *** Default font
 #+begin_src emacs-lisp
-  (set-default-font "Consolas 11")
+  (unless (null (x-list-fonts "Consolas 11"))
+    (set-default-font "Consolas 11"))
 #+end_src
 
 *** Recent File Menu
