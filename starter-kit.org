@@ -314,6 +314,7 @@ Key Bindings in [[file:starter-kit-bindings.org][starter-kit-bindings]]
 
 #+begin_src emacs-lisp
 (starter-kit-load "starter-kit-bindings.org")
+(starter-kit-load "starter-kit-windows-bindings.org")
 #+end_src
 
 *** Starter kit misc
@@ -354,6 +355,13 @@ load the yasnippet bundle
 load the snippets defined in the =./snippets/= directory
 #+begin_src emacs-lisp
   (yas/load-directory (expand-file-name "snippets" dotfiles-dir))
+#+end_src
+
+*** Starter Kit Version Control
+Located in [[file:starter-kit-latex.org][starter-kit-latex]]
+
+#+begin_src emacs-lisp
+(starter-kit-load "starter-kit-version-control.org")
 #+end_src
 
 *** Starter kit Org-mode
