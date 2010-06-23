@@ -1,0 +1,32 @@
+* Starter Kit Version Control
+This part of the Emacs Starter Kit activates version control
+modes. Comment out ones you don't need.
+
+** Magit
+It's to the point now where I almost can't use git without magit.
+- [[http://philjackson.github.com/magit/][Homepage]]
+- [[http://philjackson.github.com/magit/magit.html][Manual]]
+#+begin_src emacs-lisp
+  (require 'magit)
+  (define-key global-map "\M-\C-g" 'magit-status)
+#+end_src
+
+** aHg
+aHg is a simple Emacs front-end for the Mercurial Distributed Source
+Control Management system.
+
+Its aims are simplicity and ease of use. It was inspired by DVC, but
+it focuses exclusively on Mercurial instead of supporting multiple
+Distributed SCMs.
+- [[https://disi.unitn.it/~griggio/ahg.html][Homepage]]
+#+begin_src emacs-lisp
+  (require 'ahg)
+#+end_src
+
+** DVC
+A single mode for most distributed version control systems
+- [[http://philjackson.github.com/magit/magit.html][Homepage]]
+#+srcname: name
+#+begin_src emacs-lisp
+  ;; (require 'dvc-autoloads)
+#+end_src

@@ -1,7 +1,8 @@
 #+TITLE: Starter Kit Org
 #+OPTIONS: toc:nil num:nil ^:nil
 
-This is part of the [[file:starter-kit.org][Emacs Starter Kit]].
+This is p
+art of the [[file:starter-kit.org][Emacs Starter Kit]].
 
 * Starter Kit Org
 Configuration for the eminently useful [[http://orgmode.org/][Org Mode]].
