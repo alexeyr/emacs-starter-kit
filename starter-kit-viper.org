@@ -1,9 +1,42 @@
-* Starter Kit Version Control
-This part of the Emacs Starter Kit activates the Viper Vim emulator with Vimpulse extensions
+* Starter Kit Viper
+This part of the Emacs Starter Kit activates the Viper Vim emulator
+with Vimpulse extensions.
+
+** Set Viper customization file location
+#+srcname: name
+#+begin_src emacs-lisp 
+  (setq viper-custom-file-name (expand-file-name ".viper"
+  dotfiles-dir))
+#+end_src
+
+** Colorize Viper's Mode Line Indicator
+#+begin_src emacs-lisp
+  ;;;; This doesn't work for me
+  ;; (eval-after-load 'viper
+  ;;   '(progn
+  ;;    (setq viper-vi-state-id (concat (propertize "<V>" 'face 'hi-blue-b) " "))
+  ;;    (setq viper-emacs-state-id (concat (propertize "<E>" 'face 'hi-red-b) " "))
+  ;;    (setq viper-insert-state-id (concat (propertize "<I>" 'face 'hi-blue-b) " "))
+  ;;    (setq viper-replace-state-id (concat (propertize "<R>" 'face 'hi-blue-b) " "))
+  ;;    ;; The property `risky-local-variable' is a security measure
+  ;;    ;; for mode line variables that have properties
+  ;;    (put 'viper-mode-string 'risky-local-variable t)))
+#+end_src
+
+** Vi keys in Dired mode
+#+begin_src emacs-lisp
+  ;; (define-key dired-mode-map "v" 'dired-x-find-file)
+  ;; (define-key dired-mode-map "V" 'dired-view-file)
+  ;; (define-key dired-mode-map "j" 'dired-next-line)
+  ;; (define-key dired-mode-map "J" 'dired-goto-file)
+  ;; (define-key dired-mode-map "k" 'dired-previous-line)
+  ;; (define-key dired-mode-map "K" 'dired-do-kill-lines)
+#+end_src
 
 ** Vimpulse
-Vimpulse extends Viper with Vim features like Visual mode and text objects. I basically don't
-see any point in using Viper without Vimpulse.
+Vimpulse extends Viper with Vim features like Visual mode and text
+objects. I basically don't see any point in using Viper without
+Vimpulse.
 - [[http://www.emacswiki.org/emacs/Vimpulse][Homepage]]
 - [[http://www.assembla.com/spaces/vimpulse/trac_git_tool][Git repository]]
 #+begin_src emacs-lisp
@@ -12,4 +45,25 @@ see any point in using Viper without Vimpulse.
                                  (expand-file-name "src"
                                                    dotfiles-dir)))
   (require 'vimpulse)
+
+  ;; (require 'viper-in-more-modes)
+#+end_src
+
+** More keybindings
+#+begin_src emacs-lisp
+  (define-key viper-vi-global-user-map (kbd "q") 'fill-paragraph)
+  (define-key viper-vi-global-user-map (kbd "C-\\") 'toggle-input-method)
+  (define-key viper-insert-global-user-map (kbd "C-\\") 'toggle-input-method)
+  ;; (define-key viper-vi-global-user-map "\\" 'execute-extended-command)
+  (define-key viper-vi-global-user-map "/" 'viper-isearch-forward)
+  (define-key viper-vi-global-user-map "?" 'viper-isearch-backward)
+
+  ;;;; These don't work because "\C-w" is currently bound to ido-kill-buffer
+  ;; (define-key viper-vi-global-user-map "\C-wh" 'windmove-left)
+  ;; (define-key viper-vi-global-user-map "\C-wj" 'windmove-down)
+  ;; (define-key viper-vi-global-user-map "\C-wk" 'windmove-up)
+  ;; (define-key viper-vi-global-user-map "\C-wl" 'windmove-right)
+
+  (define-key viper-vi-global-user-map "gn" 'next-error)
+  (define-key viper-vi-global-user-map "gp" 'previous-error)
 #+end_src

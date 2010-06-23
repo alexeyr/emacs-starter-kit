@@ -309,6 +309,13 @@ Starter kit function definitions in [[file:starter-kit-defuns.org][starter-kit-d
 (starter-kit-load "starter-kit-defuns.org")
 #+end_src
 
+*** Starter kit Viper
+Viper/Vimpulse support in [[file:starter-kit-viper.org][starter-kit-viper]]
+
+#+begin_src emacs-lisp
+(starter-kit-load "starter-kit-viper.org")
+#+end_src
+
 *** Starter kit bindings
 Key Bindings in [[file:starter-kit-bindings.org][starter-kit-bindings]] and
 more in [[file:starter-kit-windows-bindings.org][starter-kit-windows-bindings]]
@@ -316,13 +323,6 @@ more in [[file:starter-kit-windows-bindings.org][starter-kit-windows-bindings]]
 #+begin_src emacs-lisp
 (starter-kit-load "starter-kit-bindings.org")
 (starter-kit-load "starter-kit-windows-bindings.org")
-#+end_src
-
-*** Starter kit Viper
-Viper/Vimpulse support in [[file:starter-kit-viper.org][starter-kit-viper]]
-
-#+begin_src emacs-lisp
-(starter-kit-load "starter-kit-viper.org")
 #+end_src
 
 *** Starter kit misc
