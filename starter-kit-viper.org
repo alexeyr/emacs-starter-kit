@@ -39,7 +39,12 @@ Vimpulse.
   ;; (require 'viper-in-more-modes)
 #+end_src
 
-** More keybindings
+** Customization
+#+begin_src emacs-lisp
+  (setq viper-case-fold-search t)
+#+end_src emacs-lisp
+
+** Keybindings
 #+begin_src emacs-lisp
   (define-key viper-vi-global-user-map (kbd "q") 'fill-paragraph)
   (define-key viper-vi-global-user-map (kbd "C-\\") 'toggle-input-method)
