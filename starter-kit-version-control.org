@@ -20,6 +20,10 @@ it focuses exclusively on Mercurial instead of supporting multiple
 Distributed SCMs.
 - [[https://disi.unitn.it/~griggio/ahg.html][Homepage]]
 #+begin_src emacs-lisp
+  (add-to-list 'load-path
+               (expand-file-name "ahg"
+                                 (expand-file-name "src"
+                                                   dotfiles-dir)))
   (require 'ahg)
 #+end_src
 
