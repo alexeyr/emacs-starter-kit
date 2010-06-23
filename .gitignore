@@ -26,3 +26,8 @@ src/auctex
 src/share
 src/var
 src/auctex-src/*elc
+starter-kit-*.el
+Alexey.el
+*.desktop
+*.lock
+*.swp
