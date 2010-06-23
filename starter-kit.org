@@ -322,6 +322,7 @@ more in [[file:starter-kit-windows-bindings.org][starter-kit-windows-bindings]]
 
 #+begin_src emacs-lisp
 (starter-kit-load "starter-kit-bindings.org")
+(starter-kit-load "starter-kit-ergonomic-keybindings.org")
 (starter-kit-load "starter-kit-windows-bindings.org")
 #+end_src
 
