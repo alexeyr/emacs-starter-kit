@@ -17,11 +17,6 @@ Key Bindings.
 (global-set-key (kbd "C-x \\") 'align-regexp)
 #+end_src
 
-** Completion that uses many different methods to find options.
-#+begin_src emacs-lisp 
-(global-set-key (kbd "M-/") 'hippie-expand)
-#+end_src
-
 ** Perform general cleanup.
 #+begin_src emacs-lisp 
 (global-set-key (kbd "C-c n") 'cleanup-buffer)
