@@ -7,6 +7,11 @@ This is part of the [[file:starter-kit.org][Emacs Starter Kit]].
 Enables [[http://xahlee.org/emacs/ergonomic_emacs_keybinding.html][Xah Lee's ergonomic keybindings]].
 #+srcname: ergobind
 #+begin_src emacs-lisp 
-  
+  (setenv "ERGOEMACS_KEYBOARD_LAYOUT" "us") ;; or your own layout
+  (add-to-list 'load-path
+               (expand-file-name "ergonomic-keybindings"
+                                 (expand-file-name "vendor"
+                                                   dotfiles-dir)))
+  (require 'ergoemacs-mode)
+  (ergoemacs-mode 1)
 #+end_src
-
