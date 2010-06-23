@@ -23,16 +23,6 @@ with Vimpulse extensions.
   ;;    (put 'viper-mode-string 'risky-local-variable t)))
 #+end_src
 
-** Vi keys in Dired mode
-#+begin_src emacs-lisp
-  ;; (define-key dired-mode-map "v" 'dired-x-find-file)
-  ;; (define-key dired-mode-map "V" 'dired-view-file)
-  ;; (define-key dired-mode-map "j" 'dired-next-line)
-  ;; (define-key dired-mode-map "J" 'dired-goto-file)
-  ;; (define-key dired-mode-map "k" 'dired-previous-line)
-  ;; (define-key dired-mode-map "K" 'dired-do-kill-lines)
-#+end_src
-
 ** Vimpulse
 Vimpulse extends Viper with Vim features like Visual mode and text
 objects. I basically don't see any point in using Viper without
