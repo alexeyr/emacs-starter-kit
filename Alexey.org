@@ -64,6 +64,11 @@ You will also need to change the values for the location of bibtex
     )
 #+end_src
 
+*** Default font
+#+begin_src emacs-lisp
+  (set-default-font "Consolas 11")
+#+end_src
+
 *** Recent File Menu
 #+srcname: local-loadpath
 #+begin_src emacs-lisp
