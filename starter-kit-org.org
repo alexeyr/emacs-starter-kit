@@ -1,8 +1,7 @@
 #+TITLE: Starter Kit Org
 #+OPTIONS: toc:nil num:nil ^:nil
 
-This is p
-art of the [[file:starter-kit.org][Emacs Starter Kit]].
+This is part of the [[file:starter-kit.org][Emacs Starter Kit]].
 
 * Starter Kit Org
 Configuration for the eminently useful [[http://orgmode.org/][Org Mode]].
@@ -18,16 +17,21 @@ which is also *implemented using* Org-mode and [[http://git-scm.com/][git]].
 ** Helpful Packages
 #+begin_src emacs-lisp
 (require 'org-install)
-(setq org-replace-disputed-keys t)
+(setq org-support-shift-select t)
+(setq org-replace-disputed-keys t) ;; seems to be too late
 (setq org-completion-use-ido t)
 ;; (if window-system (require 'org-mouse))
 
 ;; Compatibility with WindMove
 ;; Make windmove work in org-mode:
-(add-hook 'org-shiftup-final-hook 'windmove-up)
-(add-hook 'org-shiftleft-final-hook 'windmove-left)
-(add-hook 'org-shiftdown-final-hook 'windmove-down)
-(add-hook 'org-shiftright-final-hook 'windmove-right)
+(add-hook 'org-metaup-hook 'windmove-up)
+(add-hook 'org-metaleft-hook 'windmove-left)
+(add-hook 'org-metadown-hook 'windmove-down)
+(add-hook 'org-metaright-hook 'windmove-right)
+;; (add-hook 'org-shiftup-final-hook 'windmove-up)
+;; (add-hook 'org-shiftleft-final-hook 'windmove-left)
+;; (add-hook 'org-shiftdown-final-hook 'windmove-down)
+;; (add-hook 'org-shiftright-final-hook 'windmove-right)
 #+end_src
 
 ** Org-Mode Hook

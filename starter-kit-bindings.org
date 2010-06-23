@@ -38,14 +38,6 @@ Key Bindings.
 (define-key global-map (kbd "C--") 'text-scale-decrease)
 #+end_src
 
-** Use regex searches by default.
-#+begin_src emacs-lisp 
-(global-set-key (kbd "C-s") 'isearch-forward-regexp)
-(global-set-key (kbd "\C-r") 'isearch-backward-regexp)
-(global-set-key (kbd "C-M-s") 'isearch-forward)
-(global-set-key (kbd "C-M-r") 'isearch-backward)
-#+end_src
-
 ** Jump to a definition in the current file. (This is awesome.)
 #+begin_src emacs-lisp 
 (global-set-key (kbd "C-x C-i") 'ido-imenu)
@@ -65,7 +57,8 @@ Key Bindings.
 
 ** Window switching. (C-x o goes to the next window)
 #+begin_src emacs-lisp 
-;; (windmove-default-keybindings) ;; Shift+direction
+(windmove-default-keybindings 'meta) ;; Meta+direction
+(setq windmove-wrap-around t)
 (global-set-key (kbd "C-x O") (lambda () (interactive) (other-window -1))) ;; back one
 (global-set-key (kbd "C-x C-o") (lambda () (interactive) (other-window 2))) ;; forward two
 #+end_src

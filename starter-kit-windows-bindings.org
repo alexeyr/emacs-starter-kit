@@ -1,0 +1,39 @@
+#+TITLE: Starter Kit Windows Bindings
+#+OPTIONS: toc:nil num:nil ^:nil
+
+This is part of the [[file:starter-kit.org][Emacs Starter Kit]].
+
+* Starter Kit Windows Bindings
+This file makes Emacs key bindings more comfortable to use in Windows.
+
+** CUA mode
+Obvious start
+#+begin_src emacs-lisp 
+  (cua-mode t)
+#+end_src
+
+** Use regex searches with C-f by default.
+#+begin_src emacs-lisp 
+  (global-set-key (kbd "C-f") 'isearch-forward-regexp)
+  (global-set-key (kbd "C-S-f") 'isearch-backward-regexp)
+  (global-set-key (kbd "C-M-f") 'isearch-forward)
+  (global-set-key (kbd "C-M-S-f") 'isearch-backward)
+  (define-key isearch-mode-map (kbd "C-f") 'isearch-repeat-forward)
+  (define-key isearch-mode-map (kbd "C-S-f") 'isearch-repeat-backward)
+#+end_src
+
+** Save with C-s and close with C-w
+This muscle memory is way too ingrained for me.
+#+begin_src emacs-lisp 
+  (global-set-key (kbd "C-s") 'save-buffer)
+  (global-set-key (kbd "C-w") 'kill-this-buffer)
+  (global-set-key (kbd "C-S-w") 'ido-kill-buffer)
+  (global-set-key [M-f4] 'save-buffers-kill-emacs)
+  (global-set-key [C-f4] 'kill-this-buffer)
+#+end_src
+
+** C-Tab buffer cycling with Ido
+#+begin_src emacs-lisp 
+  (require 'ourcomments-util)
+  (setq ourcomments-ido-ctrl-tab t)
+#+end_src

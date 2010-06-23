@@ -126,15 +126,6 @@ You will also need to change the values for the location of bibtex
   
 #+end_src
 
-*** Windmove
-    If you don't set this, you keep getting elisp errors when you try
-    to wrap around. 
-#+srcname: local-windmove
-#+begin_src emacs-lisp
-(windmove-default-keybindings 'meta)
-(setq windmove-wrap-around t)
-#+end_src
-
 *** Resizing inside the frame
 #+srcname: resize-splits
 #+begin_src emacs-lisp
