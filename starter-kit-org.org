@@ -18,7 +18,6 @@ which is also *implemented using* Org-mode and [[http://git-scm.com/][git]].
 #+begin_src emacs-lisp
 (require 'org-install)
 (setq org-support-shift-select t)
-(setq org-replace-disputed-keys t) ;; seems to be too late
 (setq org-completion-use-ido t)
 ;; (if window-system (require 'org-mouse))
 
