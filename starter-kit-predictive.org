@@ -1,0 +1,26 @@
+#+TITLE: Emacs Starter Kit Predictive
+
+* Predictive Mode
+Predictive is a package for the GNU Emacs Editor that helps you write
+text faster. It does this by trying to predict what you are going to
+write by looking at the first few characters of each word you type,
+looking into a dictionary for matching words, and suggesting words
+from this dictionary.
+- [[http://www.dr-qubit.org/emacs.php#predictive][Homepage]]
+- [[http://www.emacswiki.org/emacs/PredictiveMode][EmacsWiki page]]
+
+Note that [[file:src/predictive/INSTALL][this mode has to be precompiled before using it]]!
+
+** Autoload it
+Change paths if necessary.
+#+srcname: load predictive
+#+begin_src emacs-lisp 
+(let ((predictive-dicts-dir (concat dotfiles-dir "predictive-dicts/"))
+      (predictive-dir (concat dotfiles-dir "src/predictive/")))
+  (add-to-list 'load-path predictive-dir)
+  (add-to-list 'load-path (concat predictive-dicts-dir "html/"))
+  (add-to-list 'load-path (concat predictive-dicts-dir "latex/"))
+  (add-to-list 'load-path (concat predictive-dicts-dir "texinfo/"))
+  (autoload 'predictive-mode (concat predictive-dir "predictive")
+    "Turn on Predictive Completion Mode." t))
+#+end_src

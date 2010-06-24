@@ -32,3 +32,5 @@ Alexey.el
 *.desktop
 *.lock
 *.swp
+src/predictive/*/dict-*.el
+src/predictive/predictive-user-manual.info.gz
