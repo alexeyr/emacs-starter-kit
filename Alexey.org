@@ -574,6 +574,17 @@ are needed.
    ;;(setq org-mobile-directory "/Volumes/kjhealy-1/org/")
    ;;(setq org-mobile-inbox-for-pull "~/Documents/org/from-mobile.org")
 #+end_src
+** Org-mode Babel
+   Babel literate programming framework for org-mode/R. You can enable
+   it for other languages, too.) 
+#+srcname: org-babel
+#+begin_src emacs-lisp 
+  ;; (require 'ob-R)         ;; requires R and ess-mode
+  (require 'ob-emacs-lisp)
+  (require 'ob-python)
+  (require 'ob-haskell)
+  ;; (require 'ob-sh)
+#+end_src
 
 ** Haskell Mode
    Haskell. 
@@ -641,4 +652,5 @@ are needed.
    ;; ;; '(cdlatex-paired-parens "$[{(")
    ;; )
 #+end_src
+   
    
