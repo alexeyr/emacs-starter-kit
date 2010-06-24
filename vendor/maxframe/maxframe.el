@@ -1,4 +1,3 @@
-;;; $Id: maxframe.el 435 2007-08-24 15:40:58Z ryan $
 ;; maximize the emacs frame based on display size
 
 ;; Copyright (C) 2007 Ryan McGeary
@@ -47,14 +46,6 @@
 ;; -----------
 ;; Requires Emacs 22 (for fringe support), but maximize-frame still works
 ;; under Emacs 21 on Windows.
-;;
-;; Emacs does not recognize when the display's resolution is changed. This is
-;; a problem because I would like to be able to re-maximize the frame after
-;; connecting to a display with different resolution. Unfortunately,
-;; display-pixel-width and display-pixel-height yield the display resolution
-;; values from when emacs was started instead of the current display
-;; values. Perhaps there's a way to have emacs re-sniff these values, but I'm
-;; not yet sure how.
 ;;
 ;; Credits
 ;; -------
@@ -171,7 +162,9 @@ specified by HEIGHT."
   (interactive)
   (when (and mf-restore-width mf-restore-height mf-restore-top mf-restore-left)
     (set-frame-size (selected-frame) mf-restore-width mf-restore-height)
-    (set-frame-position (selected-frame) mf-restore-left mf-restore-top))
+    (set-frame-position (selected-frame)
+                        (if (consp mf-restore-left) 0 mf-restore-left)
+                        mf-restore-top))
   (setq mf-restore-width nil
         mf-restore-height nil
         mf-restore-top nil
@@ -182,15 +175,13 @@ specified by HEIGHT."
 system."
   (interactive)
   (cond ((eq window-system 'w32) (w32-maximize-frame))
-		;; modified by jmjeong, emacs 23 mac version returns 'ns'
-        ((memq window-system '(x ns)) (x-maximize-frame))))
+        ((memq window-system '(x mac ns)) (x-maximize-frame))))
 
 (defun restore-frame ()
   "Restores a maximized frame.  See `maximize-frame'."
   (interactive)
   (cond ((eq window-system 'w32) (w32-restore-frame))
-		;; modified by jmjeong, emacs 23 mac version returns 'ns'
-        ((memq window-system '(x ns)) (x-restore-frame))))
+        ((memq window-system '(x mac ns)) (x-restore-frame))))
 
 (defalias 'mf 'maximize-frame)
 
