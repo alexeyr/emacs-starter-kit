@@ -28,5 +28,5 @@ Restore M-x as execute-extended-command and (you may want to comment this out)
   (define-key ergoemacs-keymap (kbd "M-x") 'execute-extended-command)
   (define-key isearch-mode-map (kbd "C-f") 'isearch-repeat-forward)
   (define-key isearch-mode-map (kbd "C-S-f") 'isearch-repeat-backward)
-  (define-key viper-vi-global-user-map (kbd "C-x C-f") 'find-file)
+  (define-key ergoemacs-keymap (kbd "C-x C-f") 'find-file)
 #+end_src
