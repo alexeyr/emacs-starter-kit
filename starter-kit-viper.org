@@ -61,4 +61,10 @@ Vimpulse.
 
   (define-key viper-vi-global-user-map "gn" 'next-error)
   (define-key viper-vi-global-user-map "gp" 'previous-error)
+
+  ;; Use C-f and C-S-f for search in Vi mode as well
+  (define-key viper-vi-global-user-map (kbd "C-f") 'isearch-forward-regexp)
+  (define-key viper-vi-global-user-map (kbd "C-S-f") 'isearch-backward-regexp)
+  (define-key viper-vi-global-user-map (kbd "C-M-f") 'isearch-forward)
+  (define-key viper-vi-global-user-map (kbd "C-M-S-f") 'isearch-backward)
 #+end_src

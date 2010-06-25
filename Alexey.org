@@ -433,16 +433,23 @@ are needed.
   (require 'bookmark+)  
 #+end_src
 
+*** LaCarte
+Library La Carte lets you auto-complete menu items and execute them as
+commands.
+
+Commented out for the moment, since the current version requires
+Icicles to work.
+#+begin_src emacs-lisp 
+  ;; (require 'lacarte)
+  ;; (global-set-key [?\C-\M-x] 'lacarte-execute-command)
+  ;; (setq 'lacarte-convert-menu-item-function 'lacarte-remove-w32-keybd-accelerators)
+#+end_src
+
 ** LaTeX Customizations and settings
 *** Use MikTeX
 #+srcname: miktex
 #+begin_src emacs-lisp 
   (require 'tex-mik)
-#+end_src
-
-*** Make emacs aware of multi-file projects
-#+begin_src emacs-lisp
-  (setq-default TeX-master nil)
 #+end_src
 
 *** Always use math mode

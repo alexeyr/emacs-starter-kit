@@ -4,7 +4,8 @@
 This is part of the [[file:starter-kit.org][Emacs Starter Kit]].
 
 * Starter Kit Ergonomic KeyBindings
-Enables [[http://xahlee.org/emacs/ergonomic_emacs_keybinding.html][Xah Lee's ergonomic keybindings]].
+[[http://xahlee.org/emacs/ergonomic_emacs_keybinding.html][Xah Lee's ergonomic keybindings]].
+** Enable
 #+srcname: ergobind
 #+begin_src emacs-lisp 
   (setenv "ERGOEMACS_KEYBOARD_LAYOUT" "us") ;; or your own layout
@@ -14,4 +15,18 @@ Enables [[http://xahlee.org/emacs/ergonomic_emacs_keybinding.html][Xah Lee's erg
                                                    dotfiles-dir)))
   (require 'ergoemacs-mode)
   (ergoemacs-mode 1)
+#+end_src
+
+** Customize ErgoEmacs mode
+Enable CUA mode and Ctrl-Tab
+
+Restore M-x as execute-extended-command and (you may want to comment this out)
+#+begin_src emacs-lisp 
+  (require 'ourcomments-util)
+  (setq ourcomments-ido-ctrl-tab t)
+  (cua-mode t)
+  (define-key ergoemacs-keymap (kbd "M-x") 'execute-extended-command)
+  (define-key isearch-mode-map (kbd "C-f") 'isearch-repeat-forward)
+  (define-key isearch-mode-map (kbd "C-S-f") 'isearch-repeat-backward)
+  (define-key viper-vi-global-user-map (kbd "C-x C-f") 'find-file)
 #+end_src
