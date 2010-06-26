@@ -442,7 +442,7 @@ Icicles to work.
 #+begin_src emacs-lisp 
   (require 'lacarte)
   (global-set-key [?\C-\M-x] 'lacarte-execute-command)
-  (setq lacarte-convert-menu-item-function 'lacarte-remove-w32-keybd-accelerators)
+  ;; (setq lacarte-convert-menu-item-function 'lacarte-remove-w32-keybd-accelerators)
 #+end_src
 
 ** LaTeX Customizations and settings
