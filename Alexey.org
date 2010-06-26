@@ -440,9 +440,9 @@ commands.
 Commented out for the moment, since the current version requires
 Icicles to work.
 #+begin_src emacs-lisp 
-  ;; (require 'lacarte)
-  ;; (global-set-key [?\C-\M-x] 'lacarte-execute-command)
-  ;; (setq 'lacarte-convert-menu-item-function 'lacarte-remove-w32-keybd-accelerators)
+  (require 'lacarte)
+  (global-set-key [?\C-\M-x] 'lacarte-execute-command)
+  (setq lacarte-convert-menu-item-function 'lacarte-remove-w32-keybd-accelerators)
 #+end_src
 
 ** LaTeX Customizations and settings
