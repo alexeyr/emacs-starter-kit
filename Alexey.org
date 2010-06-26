@@ -436,13 +436,19 @@ are needed.
 *** LaCarte
 Library La Carte lets you auto-complete menu items and execute them as
 commands.
-
-Commented out for the moment, since the current version requires
-Icicles to work.
 #+begin_src emacs-lisp 
   (require 'lacarte)
   (global-set-key [?\C-\M-x] 'lacarte-execute-command)
   ;; (setq lacarte-convert-menu-item-function 'lacarte-remove-w32-keybd-accelerators)
+#+end_src
+
+*** Predictive main dict
+Set predictive to use my own main dictionary
+#+begin_src emacs-lisp 
+  (eval-after-load "predictive"
+    '(progn
+       (dictree-load "dict-alexey")
+       (setq predictive-main-dict 'dict-alexey)))
 #+end_src
 
 ** LaTeX Customizations and settings

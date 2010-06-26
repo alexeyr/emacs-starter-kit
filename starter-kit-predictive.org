@@ -9,7 +9,7 @@ from this dictionary.
 - [[http://www.dr-qubit.org/emacs.php#predictive][Homepage]]
 - [[http://www.emacswiki.org/emacs/PredictiveMode][EmacsWiki page]]
 
-Note that [[file:src/predictive/INSTALL][this mode has to be precompiled before using it]]!
+Note that [[file:src/predictive/INSTALL][this mode should be precompiled before using it]]!
 
 ** Autoload it
 Change paths if necessary.
@@ -24,3 +24,13 @@ Change paths if necessary.
   (autoload 'predictive-mode (concat predictive-dir "predictive")
     "Turn on Predictive Completion Mode." t))
 #+end_src
+
+** Some customizations
+#+begin_src emacs-lisp 
+  (setq predictive-which-dict t)
+  (setq predictive-auto-add-min-chars 3)
+  (setq predictive-auto-learn t)
+  (setq predictive-use-auto-learn-cache nil)
+  (set-default 'predictive-auto-add-to-dict t)
+#+end_src
+
