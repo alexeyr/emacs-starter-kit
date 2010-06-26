@@ -28,7 +28,7 @@ Vimpulse.
 ** Customization
 #+begin_src emacs-lisp
   (setq viper-case-fold-search t)
-  (setq viper-vi-style-in-minibuffer nil)
+  (setq viper-auto-indent t)
   ;; (setq woman-use-own-frame nil)
   ;; (setq woman-use-topic-at-point t)
 #+end_src emacs-lisp
@@ -59,3 +59,18 @@ Vimpulse.
   (define-key viper-vi-global-user-map (kbd "C-M-f") 'isearch-forward)
   (define-key viper-vi-global-user-map (kbd "C-M-S-f") 'isearch-backward)
 #+end_src
+
+** Vimpuse-specific keybindings
+Mostly lifted from
+http://trac-git.assembla.com/vimpulse/wiki/Tips%20and%20tricks
+#+begin_src emacs-lisp
+  (vimpulse-vmap ",c" 'comment-dwim)
+
+  (vimpulse-define-text-object vimpulse-sexp (arg)
+    "Select a S-expression."
+    :keys '("ae" "ie")
+    (vimpulse-inner-object-range
+      arg
+      'backward-sexp
+      'forward-sexp))
+#+end_src emacs-lisp
