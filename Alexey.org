@@ -423,8 +423,9 @@ are needed.
 
 *** Tabkey2 mode
 #+begin_src emacs-lisp
-  (require 'tabkey2)
-  ;; (tabkey2-mode t)
+;;  (load "~/.emacs.d/src/nxhtml/util/tabkey2.el")
+;;  (require 'tabkey2)
+;;  (tabkey2-mode t)
 #+end_src
 
 *** Bookmark+
