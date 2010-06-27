@@ -14,7 +14,6 @@
  '(rebind-keys-mode t)
  '(recentf-mode t)
  '(sex-mode t)
- '(tabkey2-mode t)
  '(w32shell-cygwin-bin "C:\\cygwin\\bin")
  '(w32shell-shell (quote cmd)))
 (custom-set-faces

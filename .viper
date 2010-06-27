@@ -12,6 +12,7 @@
 ;; variables that have properties.
 (put 'viper-mode-string 'risky-local-variable t)
 
-;; (define-key viper-vi-global-user-map "\C-z" 'undo) ;; doesn't work
+(define-key viper-vi-global-user-map "\C-z" 'undo) ;; doesn't work
+(define-key viper-emacs-global-user-map "\C-z" 'undo)
 
 (setq viper-re-search nil) ; don't touch or else...
