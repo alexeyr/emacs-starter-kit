@@ -451,6 +451,11 @@ Set predictive to use my own main dictionary
        (dictree-load "dict-alexey")
        (setq predictive-main-dict 'dict-alexey)))
 #+end_src
+*** Magit path
+Set path to the Git executable
+#+begin_src emacs-lisp 
+  (setq magit-git-executable "C:/Program Files (x86)/Git/bin/git.exe")
+#+end_src
 
 ** LaTeX Customizations and settings
 *** Use MikTeX
